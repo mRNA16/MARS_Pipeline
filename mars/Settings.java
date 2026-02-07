@@ -166,6 +166,8 @@ public class Settings extends Observable {
     */
    public static final int SELF_MODIFYING_CODE_ENABLED = 20;
 
+   public static final int PIPELINE_MODE = 21;
+
    // NOTE: key sequence must match up with labels above which are used for array
    // indexes!
    private static String[] booleanSettingsKeys = { "ExtendedAssembler", "BareMachine", "AssembleOnOpen", "AssembleAll",
@@ -174,7 +176,7 @@ public class Settings extends Observable {
          "WarningsAreErrors", "ProgramArguments", "DataSegmentHighlighting",
          "RegistersHighlighting", "StartAtMain", "EditorCurrentLineHighlighting",
          "PopupInstructionGuidance", "PopupSyscallInput", "GenericTextEditor",
-         "AutoIndent", "SelfModifyingCode" };
+         "AutoIndent", "SelfModifyingCode", "PipelineMode" };
 
    /**
     * Last resort default values for boolean settings; will use only if neither
@@ -184,7 +186,7 @@ public class Settings extends Observable {
     */
    public static boolean[] defaultBooleanSettingsValues = { // match the above list by position
          true, false, false, false, false, true, true, false, false,
-         true, false, false, true, true, false, true, true, false, false, true, false };
+         true, false, false, true, true, false, true, true, false, false, true, false, false };
 
    // STRING SETTINGS. Each array position has associated name.
    /** Current specified exception handler file (a MIPS assembly source file) */
@@ -723,6 +725,10 @@ public class Settings extends Observable {
       return booleanSettingsValues[START_AT_MAIN];
    }
 
+   public boolean getPipelineMode() {
+      return booleanSettingsValues[PIPELINE_MODE];
+   }
+
    /**
     * Name of currently selected exception handler file.
     * 
@@ -1128,6 +1134,10 @@ public class Settings extends Observable {
       internalSetBooleanSetting(START_AT_MAIN, value);
    }
 
+   public void setPipelineMode(boolean value) {
+      internalSetBooleanSetting(PIPELINE_MODE, value);
+   }
+
    /**
     * Temporarily establish boolean setting. This setting will NOT be written to
     * persisent
@@ -1210,7 +1220,7 @@ public class Settings extends Observable {
     * based on all matches; if 2,
     * the popup will be generated after second letter typed.
     * 
-    * @param number of letters (should be 1 or 2).
+    * @param length of letters (should be 1 or 2).
     */
    public void setEditorPopupPrefixLength(int length) {
       setStringSetting(EDITOR_POPUP_PREFIX_LENGTH, "" + length);
