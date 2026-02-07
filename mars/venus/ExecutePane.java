@@ -47,6 +47,7 @@ public class ExecutePane extends JDesktopPane {
    private DataSegmentWindow dataSegment;
    private TextSegmentWindow textSegment;
    private LabelsWindow labelValues;
+   private PipelineWindow pipelineWindow;
    private VenusUI mainUI;
    private NumberDisplayBaseChooser valueDisplayBase;
    private NumberDisplayBaseChooser addressDisplayBase;
@@ -81,16 +82,20 @@ public class ExecutePane extends JDesktopPane {
       textSegment = new TextSegmentWindow();
       dataSegment = new DataSegmentWindow(choosers);
       labelValues = new LabelsWindow();
+      pipelineWindow = new PipelineWindow();
       labelWindowVisible = Globals.getSettings().getLabelWindowVisibility();
       this.add(textSegment); // these 3 LOC moved up. DPS 3-Sept-2014
       this.add(dataSegment);
       this.add(labelValues);
+      this.add(pipelineWindow);
       textSegment.pack(); // these 3 LOC added. DPS 3-Sept-2014
       dataSegment.pack();
       labelValues.pack();
+      pipelineWindow.pack();
       textSegment.setVisible(true);
       dataSegment.setVisible(true);
       labelValues.setVisible(labelWindowVisible);
+      pipelineWindow.setVisible(Globals.getSettings().getPipelineMode());
 
    }
 
@@ -112,17 +117,45 @@ public class ExecutePane extends JDesktopPane {
       int fullWidth = this.getSize().width - this.getInsets().left - this.getInsets().right;
       int fullHeight = this.getSize().height - this.getInsets().top - this.getInsets().bottom;
       int halfHeight = fullHeight / 2;
-      Dimension textDim = new Dimension((int) (fullWidth * .75), halfHeight);
-      Dimension dataDim = new Dimension((int) (fullWidth), halfHeight);
-      Dimension lablDim = new Dimension((int) (fullWidth * .25), halfHeight);
-      Dimension textFullDim = new Dimension((int) (fullWidth), halfHeight);
-      dataSegment.setBounds(0, textDim.height + 1, dataDim.width, dataDim.height);
-      if (labelWindowVisible) {
-         textSegment.setBounds(0, 0, textDim.width, textDim.height);
-         labelValues.setBounds(textDim.width + 1, 0, lablDim.width, lablDim.height);
+
+      boolean pipelineMode = Globals.getSettings().getPipelineMode();
+
+      if (pipelineMode) {
+         // Custom layout for Pipeline Mode
+         // Pipeline window at the top, others below
+         int pipelineHeight = 200;
+         int restHeight = fullHeight - pipelineHeight;
+         int halfRestHeight = restHeight / 2;
+
+         pipelineWindow.setBounds(0, 0, fullWidth, pipelineHeight);
+         pipelineWindow.setVisible(true);
+
+         Dimension textDim = new Dimension((int) (fullWidth * .75), halfRestHeight);
+         Dimension lablDim = new Dimension((int) (fullWidth * .25), halfRestHeight);
+
+         if (labelWindowVisible) {
+            textSegment.setBounds(0, pipelineHeight, textDim.width, textDim.height);
+            labelValues.setBounds(textDim.width + 1, pipelineHeight, lablDim.width, lablDim.height);
+         } else {
+            textSegment.setBounds(0, pipelineHeight, fullWidth, halfRestHeight);
+            labelValues.setBounds(0, 0, 0, 0);
+         }
+
+         dataSegment.setBounds(0, pipelineHeight + halfRestHeight + 1, fullWidth, restHeight - halfRestHeight);
       } else {
-         textSegment.setBounds(0, 0, textFullDim.width, textFullDim.height);
-         labelValues.setBounds(0, 0, 0, 0);
+         pipelineWindow.setVisible(false);
+         Dimension textDim = new Dimension((int) (fullWidth * .75), halfHeight);
+         Dimension dataDim = new Dimension((int) (fullWidth), halfHeight);
+         Dimension lablDim = new Dimension((int) (fullWidth * .25), halfHeight);
+         Dimension textFullDim = new Dimension((int) (fullWidth), halfHeight);
+         dataSegment.setBounds(0, textDim.height + 1, dataDim.width, dataDim.height);
+         if (labelWindowVisible) {
+            textSegment.setBounds(0, 0, textDim.width, textDim.height);
+            labelValues.setBounds(textDim.width + 1, 0, lablDim.width, lablDim.height);
+         } else {
+            textSegment.setBounds(0, 0, textFullDim.width, textFullDim.height);
+            labelValues.setBounds(0, 0, 0, 0);
+         }
       }
    }
 

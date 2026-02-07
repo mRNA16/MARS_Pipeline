@@ -10,7 +10,7 @@ import javax.swing.AbstractAction;
  * Pipeline Simulator for MIPS.
  * Implements a 5-stage pipeline: IF, ID, EX, MEM, WB.
  */
-public class PipelineSimulator {
+public class PipelineSimulator extends Observable {
     private static PipelineSimulator instance = null;
 
     // Pipeline Registers (Latch between stages)
@@ -28,6 +28,10 @@ public class PipelineSimulator {
             instance = new PipelineSimulator();
         }
         return instance;
+    }
+
+    public PipelineRegisters getPipelineRegisters() {
+        return regs;
     }
 
     private PipelineSimulator() {
@@ -51,7 +55,10 @@ public class PipelineSimulator {
      */
     public boolean step(AbstractAction actor) throws ProcessingException {
         cycles++;
-        return simulateStructure();
+        boolean result = simulateStructure();
+        setChanged();
+        notifyObservers();
+        return result;
     }
 
     // Split into structural simulation to enable "Parallel" logic
@@ -207,8 +214,10 @@ public class PipelineSimulator {
         int F_pc = RegisterFile.getProgramCounter();
         int F_instr = 0;
         try {
-            F_instr = Globals.memory.getWord(F_pc);
-        } catch (Exception e) {
+            mars.ProgramStatement stmt = Globals.memory.getStatement(F_pc);
+            F_instr = (stmt == null) ? 0 : stmt.getBinaryStatement();
+        } catch (AddressErrorException e) {
+            F_instr = 0;
         }
 
         // ================= UPDATE STATE (SEQUENTIAL) =================
@@ -264,9 +273,29 @@ public class PipelineSimulator {
             regs.if_id.update(F_pc, instrToID);
             // If pure PC flow (no stall)
             // Update PC
-            RegisterFile.updateRegister(32, npc);
+            RegisterFile.setProgramCounter(npc);
         }
 
-        return true;
+        return isDone();
+    }
+
+    /**
+     * Check if the pipeline is empty and no more instructions are coming.
+     */
+    public boolean isDone() {
+        return regs.if_id.D_instr == 0 &&
+                regs.id_ex.E_instr == 0 &&
+                regs.ex_mem.M_instr == 0 &&
+                regs.mem_wb.W_instr == 0 &&
+                fetchInstruction(RegisterFile.getProgramCounter()) == 0;
+    }
+
+    private int fetchInstruction(int address) {
+        try {
+            mars.ProgramStatement stmt = Globals.memory.getStatement(address);
+            return (stmt == null) ? 0 : stmt.getBinaryStatement();
+        } catch (Exception e) {
+            return 0;
+        }
     }
 }
