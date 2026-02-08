@@ -14,4 +14,4 @@ The development is firstly conducted by Tian Xiangyu,member of the BUAA CO STAR 
 
 ### Develop Log
 
-February,7,2026: Pipeline could run but have bugs on resetting.Simple UI only.
+February,7,2026: Pipeline could run but have bugs on resetting and closed delay slot.Simple UI only.

@@ -2,7 +2,7 @@ package mars.simulator;
 
 import mars.*;
 import mars.mips.hardware.*;
-import mars.util.*;
+
 import java.util.*;
 import javax.swing.AbstractAction;
 
@@ -201,6 +201,7 @@ public class PipelineSimulator extends Observable {
         int fpc_4 = RegisterFile.getProgramCounter() + 4;
         int dpc_4 = D.D_pc + 4;
         int npc = fpc_4;
+        boolean branchTaken = true;
 
         if (D_ctrl.npc_op == PipelineController.NPC_BRANCH && branch_condition) {
             npc = dpc_4 + ((short) (D.D_instr & 0xFFFF) << 2); // short to int will sign-extend automatically
@@ -208,6 +209,8 @@ public class PipelineSimulator extends Observable {
             npc = (dpc_4 & 0xF0000000) | ((D.D_instr & 0x03FFFFFF) << 2);
         } else if (D_ctrl.npc_op == PipelineController.NPC_JR) {
             npc = D_RD1;
+        } else {
+            branchTaken = false;
         }
 
         // --- IF Stage Logic ---
@@ -265,8 +268,7 @@ public class PipelineSimulator extends Observable {
         // IF/ID or Stall (Bubble)
         if (!stall) {
             int instrToID = F_instr;
-            boolean branchTaken = (npc != fpc_4);
-            if (branchTaken && !Globals.getSettings().getDelayedBranchingEnabled()) {
+            if (branchTaken && !Globals.getSettings().getBooleanSetting(Settings.DELAYED_BRANCHING_ENABLED)) {
                 instrToID = 0; // Flush
             }
 
