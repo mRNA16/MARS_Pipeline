@@ -48,6 +48,7 @@ public class ExecutePane extends JDesktopPane {
    private TextSegmentWindow textSegment;
    private LabelsWindow labelValues;
    private PipelineWindow pipelineWindow;
+   private ClockCycleWindow clockCycleWindow;
    private VenusUI mainUI;
    private NumberDisplayBaseChooser valueDisplayBase;
    private NumberDisplayBaseChooser addressDisplayBase;
@@ -83,19 +84,23 @@ public class ExecutePane extends JDesktopPane {
       dataSegment = new DataSegmentWindow(choosers);
       labelValues = new LabelsWindow();
       pipelineWindow = new PipelineWindow();
+      clockCycleWindow = new ClockCycleWindow();
       labelWindowVisible = Globals.getSettings().getLabelWindowVisibility();
       this.add(textSegment); // these 3 LOC moved up. DPS 3-Sept-2014
       this.add(dataSegment);
       this.add(labelValues);
       this.add(pipelineWindow);
+      this.add(clockCycleWindow);
       textSegment.pack(); // these 3 LOC added. DPS 3-Sept-2014
       dataSegment.pack();
       labelValues.pack();
       pipelineWindow.pack();
+      clockCycleWindow.pack();
       textSegment.setVisible(true);
       dataSegment.setVisible(true);
       labelValues.setVisible(labelWindowVisible);
       pipelineWindow.setVisible(Globals.getSettings().getPipelineMode());
+      clockCycleWindow.setVisible(Globals.getSettings().getPipelineMode());
 
    }
 
@@ -123,27 +128,33 @@ public class ExecutePane extends JDesktopPane {
       if (pipelineMode) {
          // Custom layout for Pipeline Mode
          // Pipeline window at the top, others below
-         int pipelineHeight = 200;
-         int restHeight = fullHeight - pipelineHeight;
+         int pipelineHeight = 180;
+         int cycleHeight = 180;
+         int restHeight = fullHeight - pipelineHeight - cycleHeight;
          int halfRestHeight = restHeight / 2;
 
          pipelineWindow.setBounds(0, 0, fullWidth, pipelineHeight);
          pipelineWindow.setVisible(true);
 
+         clockCycleWindow.setBounds(0, pipelineHeight, fullWidth, cycleHeight);
+         clockCycleWindow.setVisible(true);
+
          Dimension textDim = new Dimension((int) (fullWidth * .75), halfRestHeight);
          Dimension lablDim = new Dimension((int) (fullWidth * .25), halfRestHeight);
 
          if (labelWindowVisible) {
-            textSegment.setBounds(0, pipelineHeight, textDim.width, textDim.height);
-            labelValues.setBounds(textDim.width + 1, pipelineHeight, lablDim.width, lablDim.height);
+            textSegment.setBounds(0, pipelineHeight + cycleHeight, textDim.width, textDim.height);
+            labelValues.setBounds(textDim.width + 1, pipelineHeight + cycleHeight, lablDim.width, lablDim.height);
          } else {
-            textSegment.setBounds(0, pipelineHeight, fullWidth, halfRestHeight);
+            textSegment.setBounds(0, pipelineHeight + cycleHeight, fullWidth, halfRestHeight);
             labelValues.setBounds(0, 0, 0, 0);
          }
 
-         dataSegment.setBounds(0, pipelineHeight + halfRestHeight + 1, fullWidth, restHeight - halfRestHeight);
+         dataSegment.setBounds(0, pipelineHeight + cycleHeight + halfRestHeight + 1, fullWidth,
+               restHeight - halfRestHeight);
       } else {
          pipelineWindow.setVisible(false);
+         clockCycleWindow.setVisible(false);
          Dimension textDim = new Dimension((int) (fullWidth * .75), halfHeight);
          Dimension dataDim = new Dimension((int) (fullWidth), halfHeight);
          Dimension lablDim = new Dimension((int) (fullWidth * .25), halfHeight);

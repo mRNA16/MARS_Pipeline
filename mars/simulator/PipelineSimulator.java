@@ -22,6 +22,33 @@ public class PipelineSimulator extends Observable {
 
     // Statistics
     private int cycles = 0;
+    private int nextStepId = 0;
+    private List<ExecutionStep> executionHistory = new ArrayList<>();
+
+    public static class ExecutionStep {
+        public int id;
+        public int pc;
+        public String instruction;
+        public Map<Integer, String> cycleStages = new TreeMap<>();
+
+        public ExecutionStep(int id, int pc, String instruction) {
+            this.id = id;
+            this.pc = pc;
+            this.instruction = instruction;
+        }
+    }
+
+    public List<ExecutionStep> getExecutionHistory() {
+        return executionHistory;
+    }
+
+    public int getCycles() {
+        return cycles;
+    }
+
+    public int getNextStepId() {
+        return nextStepId;
+    }
 
     public static PipelineSimulator getInstance() {
         if (instance == null) {
@@ -43,6 +70,8 @@ public class PipelineSimulator extends Observable {
     public void reset() {
         regs.resetAll();
         cycles = 0;
+        nextStepId = 0;
+        executionHistory.clear();
         setChanged();
         notifyObservers();
     }
@@ -54,8 +83,8 @@ public class PipelineSimulator extends Observable {
      * to prevent data from rippling through multiple stages in one cycle.
      */
     public boolean step(AbstractAction actor) throws ProcessingException {
-        cycles++;
         boolean result = simulateStructure();
+        cycles++;
         setChanged();
         notifyObservers();
         return result;
@@ -216,11 +245,14 @@ public class PipelineSimulator extends Observable {
         // --- IF Stage Logic ---
         int F_pc = RegisterFile.getProgramCounter();
         int F_instr = 0;
+        String F_instr_str = "";
         try {
             mars.ProgramStatement stmt = Globals.memory.getStatement(F_pc);
             F_instr = (stmt == null) ? 0 : stmt.getBinaryStatement();
+            F_instr_str = (stmt == null) ? "nop" : stmt.getBasicAssemblyStatement();
         } catch (AddressErrorException e) {
             F_instr = 0;
+            F_instr_str = "nop";
         }
 
         // ================= UPDATE STATE (SEQUENTIAL) =================
@@ -245,13 +277,38 @@ public class PipelineSimulator extends Observable {
             }
         }
 
-        // 3. Pipeline Register Updates
+        // 3. History Tracking
+        // Record current locations before we update registers
+        if (W.stepId != -1) {
+            executionHistory.get(W.stepId).cycleStages.put(cycles, "WB");
+        }
+        if (M.stepId != -1) {
+            executionHistory.get(M.stepId).cycleStages.put(cycles, "MEM");
+        }
+        if (E.stepId != -1) {
+            executionHistory.get(E.stepId).cycleStages.put(cycles, "EX");
+        }
+        if (D.stepId != -1) {
+            executionHistory.get(D.stepId).cycleStages.put(cycles, stall ? "STALL" : "ID");
+        }
+
+        int F_stepId = -1;
+        if (!stall) {
+            if (F_instr != 0) {
+                F_stepId = nextStepId++;
+                ExecutionStep step = new ExecutionStep(F_stepId, F_pc, F_instr_str);
+                step.cycleStages.put(cycles, "IF");
+                executionHistory.add(step);
+            }
+        }
+
+        // 4. Pipeline Register Updates
 
         // MEM/WB
-        regs.mem_wb.update(M.M_pc, M.M_instr, M.M_alu_ans, M_ReadVal, M.M_zero);
+        regs.mem_wb.update(M.M_pc, M.M_instr, M.M_alu_ans, M_ReadVal, M.M_zero, M.stepId);
 
         // EX/MEM
-        regs.ex_mem.update(E.E_pc, E.E_instr, AluB, E_AluRes, E.E_zero);
+        regs.ex_mem.update(E.E_pc, E.E_instr, AluB, E_AluRes, E.E_zero, E.stepId);
 
         // ID/EX or Stall (Bubble)
         if (stall) {
@@ -262,18 +319,19 @@ public class PipelineSimulator extends Observable {
             int extImm = D_ctrl.imm16;
             if (D_ctrl.ext_op == 1)
                 extImm = (short) extImm;
-            regs.id_ex.update(D.D_pc, D.D_instr, D_RD1, D_RD2, extImm, branch_condition);
+            regs.id_ex.update(D.D_pc, D.D_instr, D_RD1, D_RD2, extImm, branch_condition, D.stepId);
         }
 
         // IF/ID or Stall (Bubble)
         if (!stall) {
             int instrToID = F_instr;
+            int stepIdToID = F_stepId;
             if (branchTaken && !Globals.getSettings().getBooleanSetting(Settings.DELAYED_BRANCHING_ENABLED)) {
                 instrToID = 0; // Flush
+                stepIdToID = -1;
             }
 
-            regs.if_id.update(F_pc, instrToID);
-            // If pure PC flow (no stall)
+            regs.if_id.update(F_pc, instrToID, stepIdToID);
             // Update PC
             RegisterFile.setProgramCounter(npc);
         }
