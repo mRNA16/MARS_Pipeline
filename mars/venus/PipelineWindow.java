@@ -83,11 +83,12 @@ public class PipelineWindow extends JInternalFrame implements Observer {
                     .getColorSettingByPosition(Settings.TEXTSEGMENT_HIGHLIGHT_BACKGROUND);
             Color memColor = Globals.getSettings().getColorSettingByPosition(Settings.DATASEGMENT_HIGHLIGHT_BACKGROUND);
             Color regColor = Globals.getSettings().getColorSettingByPosition(Settings.REGISTER_HIGHLIGHT_BACKGROUND);
+            Color idColor = new Color(255, 225, 180);
             Color exColor = new Color(255, 220, 220); // Milder red for EX
 
             // Stages: IF, ID, EX, MEM, WB
             drawStage(g2, "IF", START_X, START_Y, instrColor, getIFInstr(regs), getIFPC());
-            drawStage(g2, "ID", START_X + (BOX_WIDTH + SPACING), START_Y, instrColor, regs.if_id.D_instr,
+            drawStage(g2, "ID", START_X + (BOX_WIDTH + SPACING), START_Y, idColor, regs.if_id.D_instr,
                     regs.if_id.D_pc);
             drawStage(g2, "EX", START_X + 2 * (BOX_WIDTH + SPACING), START_Y, exColor, regs.id_ex.E_instr,
                     regs.id_ex.E_pc);
