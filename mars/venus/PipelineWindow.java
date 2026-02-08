@@ -96,6 +96,27 @@ public class PipelineWindow extends JInternalFrame implements Observer {
                     regs.ex_mem.M_pc);
             drawStage(g2, "WB", START_X + 4 * (BOX_WIDTH + SPACING), START_Y, regColor,
                     regs.mem_wb.W_instr, regs.mem_wb.W_pc);
+
+            // Draw Arrows between stages
+            for (int i = 0; i < 4; i++) {
+                drawFlowArrow(g2, START_X + BOX_WIDTH + i * (BOX_WIDTH + SPACING), START_Y);
+            }
+        }
+
+        private void drawFlowArrow(Graphics2D g2, int x, int y) {
+            g2.setColor(Color.BLACK);
+            g2.setStroke(new BasicStroke(2));
+            int x1 = x;
+            int x2 = x + SPACING;
+            int yMid = y + BOX_HEIGHT / 2;
+
+            // Draw line
+            g2.drawLine(x1, yMid, x2, yMid);
+
+            // Draw arrow head
+            int headSize = 8;
+            g2.drawLine(x2, yMid, x2 - headSize, yMid - headSize / 2);
+            g2.drawLine(x2, yMid, x2 - headSize, yMid + headSize / 2);
         }
 
         private void drawStage(Graphics2D g2, String name, int x, int y, Color color, int instr, int pc) {
