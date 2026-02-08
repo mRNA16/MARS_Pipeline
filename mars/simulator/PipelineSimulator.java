@@ -43,8 +43,8 @@ public class PipelineSimulator extends Observable {
     public void reset() {
         regs.resetAll();
         cycles = 0;
-        // Also ensure standard Registers are reset if needed, but that's usually done
-        // by MarsLaunch
+        setChanged();
+        notifyObservers();
     }
 
     /**
