@@ -267,6 +267,18 @@ public class ExecutePane extends JDesktopPane {
       return labelValues;
    }
 
+   public JInternalFrame getPipelineWindow() {
+      return pipelineWindow;
+   }
+
+   public ClockCycleWindow getClockCycleWindow() {
+      return clockCycleWindow;
+   }
+
+   public PipelineSnapshotWindow getPipelineSnapshotWindow() {
+      return pipelineSnapshotWindow;
+   }
+
    /**
     * Retrieve the number system base for displaying values (mem/register contents)
     */

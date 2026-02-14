@@ -111,7 +111,7 @@ public class VenusUI extends JFrame {
                   settingsWarningsAreErrorsAction, settingsStartAtMainAction, settingsProgramArgumentsAction,
                   settingsDelayedBranchingAction, settingsExceptionHandlerAction, settingsEditorAction,
                   settingsHighlightingAction, settingsMemoryConfigurationAction, settingsSelfModifyingCodeAction,
-                  settingsPipelineModeAction;
+                  settingsPipelineModeAction, settingsPrintLayoutAction;
       private Action helpHelpAction, helpAboutAction;
 
       /**
@@ -464,6 +464,11 @@ public class VenusUI extends JFrame {
                               "If set, the MIPS program will be simulated using a 5-stage pipeline.",
                               null, null,
                               mainUI);
+                  settingsPrintLayoutAction = new SettingsPrintLayoutAction("Print Current Layout (Debug)",
+                              null,
+                              "Prints the bounds of all UI components to the console for layout adjustment.",
+                              null, null,
+                              mainUI);
                   settingsEditorAction = new SettingsEditorAction("Editor...",
                               null,
                               "View and modify text editor settings.",
@@ -675,6 +680,8 @@ public class VenusUI extends JFrame {
             settings.add(settingsHighlighting);
             settings.add(settingsExceptionHandler);
             settings.add(settingsMemoryConfiguration);
+            settings.addSeparator();
+            settings.add(new JMenuItem(settingsPrintLayoutAction));
 
             helpHelp = new JMenuItem(helpHelpAction);
             helpHelp.setIcon(new ImageIcon(tk.getImage(cs.getResource(Globals.imagesPath + "Help16.png"))));// "Help16.gif"))));
