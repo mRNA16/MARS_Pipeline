@@ -49,6 +49,7 @@ public class ExecutePane extends JDesktopPane {
    private LabelsWindow labelValues;
    private PipelineWindow pipelineWindow;
    private ClockCycleWindow clockCycleWindow;
+   private PipelineSnapshotWindow pipelineSnapshotWindow;
    private VenusUI mainUI;
    private NumberDisplayBaseChooser valueDisplayBase;
    private NumberDisplayBaseChooser addressDisplayBase;
@@ -85,22 +86,26 @@ public class ExecutePane extends JDesktopPane {
       labelValues = new LabelsWindow();
       pipelineWindow = new PipelineWindow();
       clockCycleWindow = new ClockCycleWindow();
+      pipelineSnapshotWindow = new PipelineSnapshotWindow();
       labelWindowVisible = Globals.getSettings().getLabelWindowVisibility();
       this.add(textSegment); // these 3 LOC moved up. DPS 3-Sept-2014
       this.add(dataSegment);
       this.add(labelValues);
       this.add(pipelineWindow);
       this.add(clockCycleWindow);
+      this.add(pipelineSnapshotWindow);
       textSegment.pack(); // these 3 LOC added. DPS 3-Sept-2014
       dataSegment.pack();
       labelValues.pack();
       pipelineWindow.pack();
       clockCycleWindow.pack();
+      pipelineSnapshotWindow.pack();
       textSegment.setVisible(true);
       dataSegment.setVisible(true);
       labelValues.setVisible(labelWindowVisible);
       pipelineWindow.setVisible(Globals.getSettings().getPipelineMode());
       clockCycleWindow.setVisible(Globals.getSettings().getPipelineMode());
+      pipelineSnapshotWindow.setVisible(Globals.getSettings().getPipelineMode());
 
    }
 
@@ -127,34 +132,41 @@ public class ExecutePane extends JDesktopPane {
 
       if (pipelineMode) {
          // Custom layout for Pipeline Mode
-         // Pipeline window at the top, others below
-         int pipelineHeight = 180;
-         int cycleHeight = 180;
-         int restHeight = fullHeight - pipelineHeight - cycleHeight;
+         // Three pipeline-related windows stacked or tiled
+         int pipelineHeight = 160;
+         int diagramHeight = 220;
+         int restHeight = fullHeight - pipelineHeight - diagramHeight;
+         int halfWidth = fullWidth / 2;
          int halfRestHeight = restHeight / 2;
 
          pipelineWindow.setBounds(0, 0, fullWidth, pipelineHeight);
          pipelineWindow.setVisible(true);
 
-         clockCycleWindow.setBounds(0, pipelineHeight, fullWidth, cycleHeight);
+         // Split middle row between Cycle Diagram (Left) and Snapshot (Right)
+         clockCycleWindow.setBounds(0, pipelineHeight, halfWidth, diagramHeight);
          clockCycleWindow.setVisible(true);
+
+         pipelineSnapshotWindow.setBounds(halfWidth, pipelineHeight, fullWidth - halfWidth, diagramHeight);
+         pipelineSnapshotWindow.setVisible(true);
 
          Dimension textDim = new Dimension((int) (fullWidth * .75), halfRestHeight);
          Dimension lablDim = new Dimension((int) (fullWidth * .25), halfRestHeight);
 
+         int bottomY = pipelineHeight + diagramHeight;
          if (labelWindowVisible) {
-            textSegment.setBounds(0, pipelineHeight + cycleHeight, textDim.width, textDim.height);
-            labelValues.setBounds(textDim.width + 1, pipelineHeight + cycleHeight, lablDim.width, lablDim.height);
+            textSegment.setBounds(0, bottomY, textDim.width, textDim.height);
+            labelValues.setBounds(textDim.width + 1, bottomY, lablDim.width, lablDim.height);
          } else {
-            textSegment.setBounds(0, pipelineHeight + cycleHeight, fullWidth, halfRestHeight);
+            textSegment.setBounds(0, bottomY, fullWidth, halfRestHeight);
             labelValues.setBounds(0, 0, 0, 0);
          }
 
-         dataSegment.setBounds(0, pipelineHeight + cycleHeight + halfRestHeight + 1, fullWidth,
+         dataSegment.setBounds(0, bottomY + halfRestHeight + 1, fullWidth,
                restHeight - halfRestHeight);
       } else {
          pipelineWindow.setVisible(false);
          clockCycleWindow.setVisible(false);
+         pipelineSnapshotWindow.setVisible(false);
          Dimension textDim = new Dimension((int) (fullWidth * .75), halfHeight);
          Dimension dataDim = new Dimension((int) (fullWidth), halfHeight);
          Dimension lablDim = new Dimension((int) (fullWidth * .25), halfHeight);
