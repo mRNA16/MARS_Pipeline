@@ -21,7 +21,17 @@ public class SettingsPipelineModeAction extends GuiAction {
 
         // Update ExecutePane layout
         if (Globals.getGui() != null) {
-            Globals.getGui().getMainPane().getExecutePane().setWindowBounds();
+            VenusUI gui = Globals.getGui();
+            gui.getMainPane().getExecutePane().setWindowBounds();
+
+            if (enabled) {
+                // Also adjust splitters in VenusUI for the "snapshot" layout
+                SwingUtilities.invokeLater(() -> {
+                    gui.splitter.setDividerLocation(0.86);
+                    gui.horizonSplitter.setDividerLocation(0.88);
+                });
+            }
+
             // Re-assemble if needed, as pipeline mode might affect how we simulate
             if (FileStatus.get() == FileStatus.RUNNABLE ||
                     FileStatus.get() == FileStatus.RUNNING ||
