@@ -4,6 +4,7 @@ import mars.*;
 import mars.mips.hardware.*;
 
 import java.util.*;
+import java.util.concurrent.locks.*;
 import javax.swing.AbstractAction;
 
 /**
@@ -17,37 +18,99 @@ public class PipelineSimulator extends Observable {
     // We process stages in reverse order (WB->MEM->EX->ID->IF).
     private PipelineRegisters regs = new PipelineRegisters();
 
-    // PC is special, it needs to be managed separately or part of IF stage.
-    // In MARS, RegisterFile.programCounter is static. We should use it.
-
     // Statistics
     private int cycles = 0;
     private int nextStepId = 0;
     private List<ExecutionStep> executionHistory = new ArrayList<>();
+    private final ReentrantReadWriteLock stateLock = new ReentrantReadWriteLock();
 
     public static class ExecutionStep {
         public int id;
         public int pc;
-        public String instruction;
-        public Map<Integer, String> cycleStages = new TreeMap<>();
+        public int cycleIF = -1;
+        public int cycleID = -1;
+        public int cycleEX = -1;
+        public int cycleMEM = -1;
+        public int cycleWB = -1;
 
-        public ExecutionStep(int id, int pc, String instruction) {
+        public List<Integer> stallCycles = null;
+
+        public ExecutionStep(int id, int pc) {
             this.id = id;
             this.pc = pc;
-            this.instruction = instruction;
+        }
+
+        public synchronized void setStage(int cycle, String stage) {
+            switch (stage) {
+                case "IF":
+                    cycleIF = cycle;
+                    break;
+                case "ID":
+                    cycleID = cycle;
+                    break;
+                case "EX":
+                    cycleEX = cycle;
+                    break;
+                case "MEM":
+                    cycleMEM = cycle;
+                    break;
+                case "WB":
+                    cycleWB = cycle;
+                    break;
+                case "STALL":
+                    if (stallCycles == null)
+                        stallCycles = new ArrayList<>();
+                    stallCycles.add(cycle);
+                    break;
+            }
+        }
+
+        public synchronized String getStageAt(int cycle) {
+            if (cycle == cycleIF)
+                return "IF";
+            if (cycle == cycleID)
+                return "ID";
+            if (cycle == cycleEX)
+                return "EX";
+            if (cycle == cycleMEM)
+                return "MEM";
+            if (cycle == cycleWB)
+                return "WB";
+            if (stallCycles != null && stallCycles.contains(cycle))
+                return "STALL";
+            return null;
         }
     }
 
+    public ReentrantReadWriteLock getLock() {
+        return stateLock;
+    }
+
     public List<ExecutionStep> getExecutionHistory() {
-        return executionHistory;
+        stateLock.readLock().lock();
+        try {
+            return new ArrayList<>(executionHistory);
+        } finally {
+            stateLock.readLock().unlock();
+        }
     }
 
     public int getCycles() {
-        return cycles;
+        stateLock.readLock().lock();
+        try {
+            return cycles;
+        } finally {
+            stateLock.readLock().unlock();
+        }
     }
 
     public int getNextStepId() {
-        return nextStepId;
+        stateLock.readLock().lock();
+        try {
+            return nextStepId;
+        } finally {
+            stateLock.readLock().unlock();
+        }
     }
 
     public static PipelineSimulator getInstance() {
@@ -68,26 +131,35 @@ public class PipelineSimulator extends Observable {
      * reset the pipeline and registers
      */
     public void reset() {
-        regs.resetAll();
-        cycles = 0;
-        nextStepId = 0;
-        executionHistory.clear();
-        setChanged();
+        stateLock.writeLock().lock();
+        try {
+            regs.resetAll();
+            cycles = 0;
+            nextStepId = 0;
+            executionHistory.clear();
+            setChanged();
+        } finally {
+            stateLock.writeLock().unlock();
+        }
         notifyObservers();
     }
 
     /**
-     * Simulate one clock cycle (a step).
-     * Corresponds to `always @(posedge clk)` in sequential logic.
-     * We execute stages in REVERSE order: WB -> MEM -> EX -> ID -> IF
-     * to prevent data from rippling through multiple stages in one cycle.
+     * Simulation step for external call (with action)
      */
-    public boolean step(AbstractAction actor) throws ProcessingException {
-        boolean result = simulateStructure();
-        cycles++;
-        setChanged();
+    public boolean step(AbstractAction action) throws ProcessingException {
+        boolean done = false;
+        stateLock.writeLock().lock();
+        try {
+            done = simulateStructure();
+            cycles++;
+            setChanged();
+        } finally {
+            stateLock.writeLock().unlock();
+        }
         notifyObservers();
-        return result;
+        Thread.yield();
+        return done;
     }
 
     // Split into structural simulation to enable "Parallel" logic
@@ -134,9 +206,6 @@ public class PipelineSimulator extends Observable {
         } else if (W_A3 == M_RT && W_ctrl.grf_we && W_A3 != 0) {
             forward_M_RT_Value = W_WD; // Forward from WB
         }
-
-        // int M_dm_read = 0;
-        // int M_Addr = mem.M_alu_ans;
 
         // Forwarding to EX from MEM
         int M_WD = (M_ctrl.jump_and_link) ? M.M_pc + 8 : M.M_alu_ans;
@@ -244,27 +313,18 @@ public class PipelineSimulator extends Observable {
 
         // --- IF Stage Logic ---
         int F_pc = RegisterFile.getProgramCounter();
-        int F_instr = 0;
-        String F_instr_str = "";
-        try {
-            mars.ProgramStatement stmt = Globals.memory.getStatement(F_pc);
-            F_instr = (stmt == null) ? 0 : stmt.getBinaryStatement();
-            F_instr_str = (stmt == null) ? "nop" : stmt.getBasicAssemblyStatement();
-        } catch (AddressErrorException e) {
-            F_instr = 0;
-            F_instr_str = "nop";
-        }
+        int F_instr = fetchInstruction(F_pc);
 
-        // ================= UPDATE STATE (SEQUENTIAL) =================
+        // ================= UPDATE ARCHITECTURAL STATE (GRF, DM, PC) =================
 
-        // 1. WB Write
+        // Write Back (WB)
         if (W_ctrl.grf_we && W_A3 != 0) {
             RegisterFile.updateRegister(W_A3, W_WD);
         }
 
-        // 2. Memory Access (Simulated for Side Effects)
+        // Memory (MEM)
         int M_ReadVal = 0;
-        if (M_ctrl.dm_we) { // Store
+        if (M_ctrl.dm_we) {
             try {
                 Globals.memory.setWord(M.M_alu_ans, forward_M_RT_Value);
                 M_ReadVal = forward_M_RT_Value;
@@ -280,24 +340,32 @@ public class PipelineSimulator extends Observable {
         // 3. History Tracking
         // Record current locations before we update registers
         if (W.stepId != -1) {
-            executionHistory.get(W.stepId).cycleStages.put(cycles, "WB");
+            ExecutionStep s = executionHistory.get(W.stepId);
+            if (s != null)
+                s.setStage(cycles, "WB");
         }
         if (M.stepId != -1) {
-            executionHistory.get(M.stepId).cycleStages.put(cycles, "MEM");
+            ExecutionStep s = executionHistory.get(M.stepId);
+            if (s != null)
+                s.setStage(cycles, "MEM");
         }
         if (E.stepId != -1) {
-            executionHistory.get(E.stepId).cycleStages.put(cycles, "EX");
+            ExecutionStep s = executionHistory.get(E.stepId);
+            if (s != null)
+                s.setStage(cycles, "EX");
         }
         if (D.stepId != -1) {
-            executionHistory.get(D.stepId).cycleStages.put(cycles, stall ? "STALL" : "ID");
+            ExecutionStep s = executionHistory.get(D.stepId);
+            if (s != null)
+                s.setStage(cycles, stall ? "STALL" : "ID");
         }
 
         int F_stepId = -1;
         if (!stall) {
             if (F_instr != 0) {
                 F_stepId = nextStepId++;
-                ExecutionStep step = new ExecutionStep(F_stepId, F_pc, F_instr_str);
-                step.cycleStages.put(cycles, "IF");
+                ExecutionStep step = new ExecutionStep(F_stepId, F_pc);
+                step.setStage(cycles, "IF");
                 executionHistory.add(step);
             }
         }
@@ -343,11 +411,16 @@ public class PipelineSimulator extends Observable {
      * Check if the pipeline is empty and no more instructions are coming.
      */
     public boolean isDone() {
-        return regs.if_id.D_instr == 0 &&
-                regs.id_ex.E_instr == 0 &&
-                regs.ex_mem.M_instr == 0 &&
-                regs.mem_wb.W_instr == 0 &&
-                fetchInstruction(RegisterFile.getProgramCounter()) == 0;
+        stateLock.readLock().lock();
+        try {
+            return regs.if_id.D_instr == 0 &&
+                    regs.id_ex.E_instr == 0 &&
+                    regs.ex_mem.M_instr == 0 &&
+                    regs.mem_wb.W_instr == 0 &&
+                    fetchInstruction(RegisterFile.getProgramCounter()) == 0;
+        } finally {
+            stateLock.readLock().unlock();
+        }
     }
 
     private int fetchInstruction(int address) {
