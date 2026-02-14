@@ -191,6 +191,7 @@ public class VenusUI extends JFrame {
             splitter = new JSplitPane(JSplitPane.VERTICAL_SPLIT, mainPane, messagesPane);
             splitter.setOneTouchExpandable(true);
             splitter.resetToPreferredSizes();
+
             horizonSplitter = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, splitter, registersPane);
             horizonSplitter.setOneTouchExpandable(true);
             horizonSplitter.resetToPreferredSizes();
@@ -221,6 +222,12 @@ public class VenusUI extends JFrame {
                         new WindowAdapter() {
                               public void windowOpened(WindowEvent e) {
                                     mainUI.setExtendedState(JFrame.MAXIMIZED_BOTH);
+                                    if (Globals.getSettings().getPipelineMode()) {
+                                          SwingUtilities.invokeLater(() -> {
+                                                splitter.setDividerLocation(0.86);
+                                                horizonSplitter.setDividerLocation(0.88);
+                                          });
+                                    }
                               }
                         });
 

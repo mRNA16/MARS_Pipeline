@@ -131,38 +131,40 @@ public class ExecutePane extends JDesktopPane {
       boolean pipelineMode = Globals.getSettings().getPipelineMode();
 
       if (pipelineMode) {
-         // Custom layout for Pipeline Mode
-         // Three pipeline-related windows stacked or tiled
-         int pipelineHeight = 160;
-         int diagramHeight = 220;
-         int restHeight = fullHeight - pipelineHeight - diagramHeight;
-         int halfWidth = fullWidth / 2;
-         int halfRestHeight = restHeight / 2;
+         // Optimized layout for Pipeline Mode (Widescreen Tiled)
+         // Based on user snapshot: ~41% left for Text/Cycle, ~59% right for
+         // Schema/Snapshot
+         int leftWidth = (int) (fullWidth * 0.41);
+         int rightWidth = fullWidth - leftWidth;
+         int topHeight = (int) (fullHeight * 0.31);
+         int midHeight = (int) (fullHeight * 0.25);
+         int bottomY = topHeight + midHeight;
+         int bottomHeight = fullHeight - bottomY;
 
-         pipelineWindow.setBounds(0, 0, fullWidth, pipelineHeight);
+         // Row 1: Text Segment (Left) | Pipeline View (Right)
+         textSegment.setBounds(0, 0, leftWidth, topHeight);
+         pipelineWindow.setBounds(leftWidth, 0, rightWidth, topHeight);
          pipelineWindow.setVisible(true);
 
-         // Split middle row between Cycle Diagram (Left) and Snapshot (Right)
-         clockCycleWindow.setBounds(0, pipelineHeight, halfWidth, diagramHeight);
+         // Row 2: Clock Cycle Diagram (Left) | Pipeline Snapshot (Right)
+         clockCycleWindow.setBounds(0, topHeight, leftWidth, midHeight);
          clockCycleWindow.setVisible(true);
 
-         pipelineSnapshotWindow.setBounds(halfWidth, pipelineHeight, fullWidth - halfWidth, diagramHeight);
+         pipelineSnapshotWindow.setBounds(leftWidth, topHeight, rightWidth, midHeight);
          pipelineSnapshotWindow.setVisible(true);
 
-         Dimension textDim = new Dimension((int) (fullWidth * .75), halfRestHeight);
-         Dimension lablDim = new Dimension((int) (fullWidth * .25), halfRestHeight);
+         // Row 3: Data Segment (Full Width)
+         dataSegment.setBounds(0, bottomY, fullWidth, bottomHeight);
 
-         int bottomY = pipelineHeight + diagramHeight;
+         // Labels Window (Floating or docked with Text Segment if visible)
          if (labelWindowVisible) {
-            textSegment.setBounds(0, bottomY, textDim.width, textDim.height);
-            labelValues.setBounds(textDim.width + 1, bottomY, lablDim.width, lablDim.height);
+            int lablWidth = (int) (leftWidth * 0.35);
+            textSegment.setSize(leftWidth - lablWidth, topHeight);
+            labelValues.setBounds(leftWidth - lablWidth, 0, lablWidth, topHeight);
+            labelValues.setVisible(true);
          } else {
-            textSegment.setBounds(0, bottomY, fullWidth, halfRestHeight);
-            labelValues.setBounds(0, 0, 0, 0);
+            labelValues.setVisible(false);
          }
-
-         dataSegment.setBounds(0, bottomY + halfRestHeight + 1, fullWidth,
-               restHeight - halfRestHeight);
       } else {
          pipelineWindow.setVisible(false);
          clockCycleWindow.setVisible(false);
