@@ -20,7 +20,7 @@ public class PipelineSnapshotWindow extends JInternalFrame implements Observer {
 
     private static final int ROW_HEIGHT = 22;
     private static final int COL_WIDTH = 160; // Wider for better readability
-    private static final int LABEL_WIDTH = 80;
+    private static final int LABEL_WIDTH = 40;
     private static final int HEADER_HEIGHT = 25;
 
     private long lastUpdateTime = 0;
@@ -57,8 +57,14 @@ public class PipelineSnapshotWindow extends JInternalFrame implements Observer {
         if (updatePending)
             return;
         long now = System.currentTimeMillis();
-        if (obj == null && now - lastUpdateTime < UPDATE_THROTTLE_MS)
+        boolean isReset = "RESET".equals(obj);
+
+        if (!isReset && obj == null && now - lastUpdateTime < UPDATE_THROTTLE_MS)
             return;
+
+        if (isReset) {
+            updatePending = false;
+        }
 
         updatePending = true;
         lastUpdateTime = now;

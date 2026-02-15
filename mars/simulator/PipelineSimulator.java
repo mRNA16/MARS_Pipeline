@@ -166,6 +166,7 @@ public class PipelineSimulator extends Observable {
         stateLock.writeLock().lock();
         try {
             regs.resetAll();
+            cycles = 0;
             nextStepId = 0;
             executionHistory.clear();
             currentHazard.clear();
@@ -174,7 +175,7 @@ public class PipelineSimulator extends Observable {
         } finally {
             stateLock.writeLock().unlock();
         }
-        notifyObservers();
+        notifyObservers("RESET");
     }
 
     /**

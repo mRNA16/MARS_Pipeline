@@ -66,9 +66,17 @@ public class ClockCycleWindow extends JInternalFrame implements Observer {
             return;
 
         long now = System.currentTimeMillis();
-        // If simulation just stopped/paused (obj != null), we force update
-        if (obj == null && now - lastUpdateTime < UPDATE_THROTTLE_MS) {
+        boolean isReset = "RESET".equals(obj);
+
+        // Bypass throttle for resets
+        if (!isReset && obj == null && now - lastUpdateTime < UPDATE_THROTTLE_MS) {
             return;
+        }
+
+        // If it's a reset, we want to ensure it's processed even if an update is
+        // pending
+        if (isReset) {
+            updatePending = false;
         }
 
         updatePending = true;
