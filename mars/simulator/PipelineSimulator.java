@@ -28,14 +28,24 @@ public class PipelineSimulator extends Observable {
     public static class HazardInfo {
         public boolean stalled = false;
         public String stallSource = null; // "EX" or "MEM"
-        // Forwarding: Map<DestinationName, SourceStage>
-        // DestinationNames: "ID_RS", "ID_RT", "EX_RS", "EX_RT", "MEM_RT"
-        // SourceStage: "EX", "MEM"
-        public Map<String, String> forwardings = new HashMap<>();
+        public int stallReg = -1; // The register that caused the stall
+
+        public static class ForwardData {
+            public String srcStage;
+            public int regNum;
+
+            public ForwardData(String s, int r) {
+                srcStage = s;
+                regNum = r;
+            }
+        }
+
+        public Map<String, ForwardData> forwardings = new HashMap<>();
 
         public void clear() {
             stalled = false;
             stallSource = null;
+            stallReg = -1;
             forwardings.clear();
         }
     }
@@ -138,6 +148,7 @@ public class PipelineSimulator extends Observable {
             HazardInfo copy = new HazardInfo();
             copy.stalled = currentHazard.stalled;
             copy.stallSource = currentHazard.stallSource;
+            copy.stallReg = currentHazard.stallReg;
             copy.forwardings.putAll(currentHazard.forwardings);
             return copy;
         } finally {
@@ -478,38 +489,52 @@ public class PipelineSimulator extends Observable {
                 boolean rt_E_hazard = (D_ctrl.t_use_rt < E_ctrl.t_new_E) && (D_ctrl.rt == E_ctrl.writeRegDst)
                         && (E_ctrl.writeRegDst != 0);
                 currentHazard.stallSource = (rs_E_hazard || rt_E_hazard) ? "EX" : "MEM";
+
+                // Track which register caused the stall
+                if (rs_E_hazard)
+                    currentHazard.stallReg = D_ctrl.rs;
+                else if (rt_E_hazard)
+                    currentHazard.stallReg = D_ctrl.rt;
+                else {
+                    boolean rs_M_hazard = (D_ctrl.t_use_rs < M_ctrl.t_new_M) && (D_ctrl.rs == M_ctrl.writeRegDst)
+                            && (M_ctrl.writeRegDst != 0);
+                    if (rs_M_hazard)
+                        currentHazard.stallReg = D_ctrl.rs;
+                    else
+                        currentHazard.stallReg = D_ctrl.rt;
+                }
             }
 
             // 2. Detect Forwardings (Based on visible instructions)
             // Destination: ID
             if (D_ctrl.rs != 0) {
                 if (D_ctrl.rs == M_ctrl.writeRegDst && M_ctrl.grf_we)
-                    currentHazard.forwardings.put("ID_RS", "MEM");
+                    currentHazard.forwardings.put("ID_RS", new HazardInfo.ForwardData("MEM", D_ctrl.rs));
                 else if (D_ctrl.rs == W_ctrl.writeRegDst && W_ctrl.grf_we)
-                    currentHazard.forwardings.put("ID_RS", "WB");
+                    currentHazard.forwardings.put("ID_RS", new HazardInfo.ForwardData("WB", D_ctrl.rs));
             }
             if (D_ctrl.rt != 0) {
                 if (D_ctrl.rt == M_ctrl.writeRegDst && M_ctrl.grf_we)
-                    currentHazard.forwardings.put("ID_RT", "MEM");
+                    currentHazard.forwardings.put("ID_RT", new HazardInfo.ForwardData("MEM", D_ctrl.rt));
                 else if (D_ctrl.rt == W_ctrl.writeRegDst && W_ctrl.grf_we)
-                    currentHazard.forwardings.put("ID_RT", "WB");
+                    currentHazard.forwardings.put("ID_RT", new HazardInfo.ForwardData("WB", D_ctrl.rt));
             }
             // Destination: EX
             if (E_ctrl.rs != 0) {
                 if (E_ctrl.rs == M_ctrl.writeRegDst && M_ctrl.grf_we)
-                    currentHazard.forwardings.put("EX_RS", "MEM");
+                    currentHazard.forwardings.put("EX_RS", new HazardInfo.ForwardData("MEM", E_ctrl.rs));
                 else if (E_ctrl.rs == W_ctrl.writeRegDst && W_ctrl.grf_we)
-                    currentHazard.forwardings.put("EX_RS", "WB");
+                    currentHazard.forwardings.put("EX_RS", new HazardInfo.ForwardData("WB", E_ctrl.rs));
             }
             if (E_ctrl.rt != 0) {
                 if (E_ctrl.rt == M_ctrl.writeRegDst && M_ctrl.grf_we)
-                    currentHazard.forwardings.put("EX_RT", "MEM");
+                    currentHazard.forwardings.put("EX_RT", new HazardInfo.ForwardData("MEM", E_ctrl.rt));
                 else if (E_ctrl.rt == W_ctrl.writeRegDst && W_ctrl.grf_we)
-                    currentHazard.forwardings.put("EX_RT", "WB");
+                    currentHazard.forwardings.put("EX_RT", new HazardInfo.ForwardData("WB", E_ctrl.rt));
             }
             // Destination: MEM (RT for Store)
             if (M_ctrl.rt != 0 && M_ctrl.rt == W_ctrl.writeRegDst && W_ctrl.grf_we) {
-                currentHazard.forwardings.put("MEM_RT", "WB");
+                currentHazard.forwardings.put("MEM_RT", new HazardInfo.ForwardData("WB", M_ctrl.rt));
             }
 
         } finally {

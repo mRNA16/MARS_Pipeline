@@ -55,11 +55,11 @@ public class PipelineWindow extends JInternalFrame implements Observer {
         private static final int BOX_WIDTH = 120;
         private static final int BOX_HEIGHT = 80;
         private static final int SPACING = 30;
-        private static final int START_X = 40;
-        private static final int START_Y = 40;
+        private static final int START_X = 60;
+        private static final int START_Y = 60;
 
         public PipelinePanel() {
-            setPreferredSize(new Dimension(800, 200));
+            setPreferredSize(new Dimension(850, 280)); // Increased height
             setBackground(Color.WHITE);
 
             addMouseListener(new MouseAdapter() {
@@ -124,17 +124,18 @@ public class PipelineWindow extends JInternalFrame implements Observer {
                 g2.drawRect(causeX - 2, START_Y - 2, BOX_WIDTH + 4, BOX_HEIGHT + 4);
 
                 // Draw red arrow on bottom, deep arch to avoid clash
+                String regName = getRegName(hazard.stallReg);
                 drawHazardArrow(g2, causeX + BOX_WIDTH / 2, START_Y + BOX_HEIGHT + 2,
-                        idX + BOX_WIDTH / 2, START_Y + BOX_HEIGHT + 2, Color.RED, true, 45);
+                        idX + BOX_WIDTH / 2, START_Y + BOX_HEIGHT + 2, Color.RED, true, 45, regName);
             }
 
             // 2. Draw Forwarding
             g2.setStroke(new BasicStroke(2));
-            for (Map.Entry<String, String> entry : hazard.forwardings.entrySet()) {
+            for (Map.Entry<String, PipelineSimulator.HazardInfo.ForwardData> entry : hazard.forwardings.entrySet()) {
                 String dest = entry.getKey();
-                String src = entry.getValue();
+                PipelineSimulator.HazardInfo.ForwardData fData = entry.getValue();
 
-                int srcIdx = (src.equals("MEM")) ? 3 : 4;
+                int srcIdx = (fData.srcStage.equals("MEM")) ? 3 : 4;
                 int destIdx = dest.startsWith("ID") ? 1 : (dest.startsWith("EX") ? 2 : 3);
 
                 int srcX = getBoxX(srcIdx);
@@ -151,9 +152,10 @@ public class PipelineWindow extends JInternalFrame implements Observer {
 
                 // archHeight varies by distance to avoid overlapping paths
                 int archHeight = Math.abs(srcIdx - destIdx) * 12 + 25;
+                String regName = getRegName(fData.regNum);
 
                 drawHazardArrow(g2, srcX + BOX_WIDTH / 2, yPos,
-                        destX + BOX_WIDTH / 2, yPos, Color.BLUE, isRT, archHeight);
+                        destX + BOX_WIDTH / 2, yPos, Color.BLUE, isRT, archHeight, regName);
             }
         }
 
@@ -161,8 +163,14 @@ public class PipelineWindow extends JInternalFrame implements Observer {
             return START_X + stageIdx * (BOX_WIDTH + SPACING);
         }
 
+        private String getRegName(int regNum) {
+            if (regNum < 0 || regNum > 31)
+                return "";
+            return "$" + regNum;
+        }
+
         private void drawHazardArrow(Graphics2D g2, int x1, int y1, int x2, int y2, Color color, boolean archDown,
-                int arcHeight) {
+                int arcHeight, String label) {
             g2.setColor(color);
             int effectiveArc = archDown ? -arcHeight : arcHeight;
 
@@ -171,6 +179,28 @@ public class PipelineWindow extends JInternalFrame implements Observer {
             int ctrlY = (y1 + y2) / 2 - effectiveArc;
 
             g2.draw(new java.awt.geom.QuadCurve2D.Float(x1, y1, ctrlX, ctrlY, x2, y2));
+
+            // Draw label
+            if (label != null && !label.isEmpty()) {
+                g2.setFont(new Font("SansSerif", Font.BOLD, 10));
+                FontMetrics fm = g2.getFontMetrics();
+                int labelWidth = fm.stringWidth(label);
+                int labelX = ctrlX - labelWidth / 2;
+
+                // For QuadCurve with y1 == y2, the actual vertex is at (y1 + ctrlY) / 2
+                int vertexY = (y1 + ctrlY) / 2;
+
+                // Position label exactly touching the vertex
+                int labelY = archDown ? (vertexY + fm.getAscent() - 1) : (vertexY - fm.getDescent() + 0);
+
+                // Tight background for label
+                g2.setColor(new Color(255, 255, 255, 180));
+                g2.fillRect(labelX - 1, labelY - fm.getAscent() + 1, labelWidth + 2,
+                        fm.getAscent() + fm.getDescent() - 2);
+
+                g2.setColor(color);
+                g2.drawString(label, labelX, labelY);
+            }
 
             // Arrow head at x2, y2
             int headSize = 8;
@@ -196,6 +226,7 @@ public class PipelineWindow extends JInternalFrame implements Observer {
             // Draw arrow head
             int headSize = 8;
             g2.drawLine(x2, yMid, x2 - headSize, yMid - headSize / 2);
+            g2.drawLine(0, 0, 0, 0); // Dummy for rotation safety if used hereafter
             g2.drawLine(x2, yMid, x2 - headSize, yMid + headSize / 2);
         }
 
