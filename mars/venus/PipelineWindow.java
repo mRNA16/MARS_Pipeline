@@ -210,8 +210,9 @@ public class PipelineWindow extends JInternalFrame implements Observer {
             String pcStr = "0x" + Binary.intToHexString(pc).toUpperCase();
             g2.drawString(pcStr, x + 5, y + 45);
 
-            // Draw Instruction mnemonic
-            String instrStr = getInstructionMnemonic(instr);
+            // Draw Instruction
+            g2.setFont(new Font("Monospaced", Font.PLAIN, 9));
+            String instrStr = getInstructionString(instr, pc);
             g2.drawString(instrStr, x + 5, y + 65);
         }
 
@@ -229,14 +230,20 @@ public class PipelineWindow extends JInternalFrame implements Observer {
             return RegisterFile.getProgramCounter();
         }
 
-        private String getInstructionMnemonic(int binary) {
+        private String getInstructionString(int binary, int pc) {
             if (binary == 0)
                 return "nop";
             try {
-                ProgramStatement ps = new ProgramStatement(binary, 0);
-                if (ps.getInstruction() != null) {
-                    return ps.getInstruction().getName();
+                ProgramStatement stmt = Globals.memory.getStatement(pc);
+                if (stmt != null && stmt.getBinaryStatement() == binary) {
+                    return stmt.getPrintableBasicAssemblyStatement(16);
                 }
+            } catch (Exception e) {
+            }
+            // Fallback
+            try {
+                ProgramStatement ps = new ProgramStatement(binary, pc);
+                return ps.getPrintableBasicAssemblyStatement(16);
             } catch (Exception e) {
             }
             return "0x" + Binary.intToHexString(binary).toUpperCase();
@@ -261,9 +268,7 @@ public class PipelineWindow extends JInternalFrame implements Observer {
         private void showRegisterDetails(int stageIdx) {
             String[] stageNames = { "IF/ID", "ID/EX", "EX/MEM", "MEM/WB" };
             if (stageIdx >= 4)
-                return; // WB has no exit register displayed in this context?
-                        // Actually, the request says "出口处的流水寄存器".
-                        // WB's exit is the Register File update.
+                return;
 
             String title = stageNames[stageIdx] + " Pipeline Register";
             StringBuilder details = new StringBuilder();
