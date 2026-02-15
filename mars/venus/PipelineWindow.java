@@ -55,8 +55,8 @@ public class PipelineWindow extends JInternalFrame implements Observer {
         private static final int BOX_WIDTH = 120;
         private static final int BOX_HEIGHT = 80;
         private static final int SPACING = 30;
-        private static final int START_X = 20;
-        private static final int START_Y = 20;
+        private static final int START_X = 40;
+        private static final int START_Y = 40;
 
         public PipelinePanel() {
             setPreferredSize(new Dimension(800, 200));
@@ -123,9 +123,9 @@ public class PipelineWindow extends JInternalFrame implements Observer {
                 g2.drawRect(idX - 2, START_Y - 2, BOX_WIDTH + 4, BOX_HEIGHT + 4);
                 g2.drawRect(causeX - 2, START_Y - 2, BOX_WIDTH + 4, BOX_HEIGHT + 4);
 
-                // Draw red arrow from cause to ID
-                drawHazardArrow(g2, causeX + BOX_WIDTH / 2, START_Y + BOX_HEIGHT,
-                        idX + BOX_WIDTH / 2, START_Y + BOX_HEIGHT, Color.RED, true);
+                // Draw red arrow on bottom, deep arch to avoid clash
+                drawHazardArrow(g2, causeX + BOX_WIDTH / 2, START_Y + BOX_HEIGHT + 2,
+                        idX + BOX_WIDTH / 2, START_Y + BOX_HEIGHT + 2, Color.RED, true, 45);
             }
 
             // 2. Draw Forwarding
@@ -134,7 +134,7 @@ public class PipelineWindow extends JInternalFrame implements Observer {
                 String dest = entry.getKey();
                 String src = entry.getValue();
 
-                int srcIdx = src.equals("MEM") ? 3 : 4;
+                int srcIdx = (src.equals("MEM")) ? 3 : 4;
                 int destIdx = dest.startsWith("ID") ? 1 : (dest.startsWith("EX") ? 2 : 3);
 
                 int srcX = getBoxX(srcIdx);
@@ -145,11 +145,15 @@ public class PipelineWindow extends JInternalFrame implements Observer {
                 g2.drawRect(srcX - 2, START_Y - 2, BOX_WIDTH + 4, BOX_HEIGHT + 4);
                 g2.drawRect(destX - 2, START_Y - 2, BOX_WIDTH + 4, BOX_HEIGHT + 4);
 
-                // Draw blue arrow from source to destination
-                // Offset vertically to avoid overlap if multiple forwards
-                int yOffset = dest.endsWith("RS") ? -15 : (dest.endsWith("RT") ? 15 : 0);
-                drawHazardArrow(g2, srcX + BOX_WIDTH / 2, START_Y + BOX_HEIGHT / 2,
-                        destX + BOX_WIDTH / 2, START_Y + BOX_HEIGHT / 2 + yOffset, Color.BLUE, false);
+                // RS on top, RT on bottom
+                boolean isRT = dest.endsWith("RT");
+                int yPos = isRT ? (START_Y + BOX_HEIGHT + 2) : (START_Y - 2);
+
+                // archHeight varies by distance to avoid overlapping paths
+                int archHeight = Math.abs(srcIdx - destIdx) * 12 + 25;
+
+                drawHazardArrow(g2, srcX + BOX_WIDTH / 2, yPos,
+                        destX + BOX_WIDTH / 2, yPos, Color.BLUE, isRT, archHeight);
             }
         }
 
@@ -157,13 +161,14 @@ public class PipelineWindow extends JInternalFrame implements Observer {
             return START_X + stageIdx * (BOX_WIDTH + SPACING);
         }
 
-        private void drawHazardArrow(Graphics2D g2, int x1, int y1, int x2, int y2, Color color, boolean bottom) {
+        private void drawHazardArrow(Graphics2D g2, int x1, int y1, int x2, int y2, Color color, boolean archDown,
+                int arcHeight) {
             g2.setColor(color);
-            int arcHeight = bottom ? -35 : 35;
+            int effectiveArc = archDown ? -arcHeight : arcHeight;
 
             // Draw a curved line (quad curve)
             int ctrlX = (x1 + x2) / 2;
-            int ctrlY = (y1 + y2) / 2 - arcHeight;
+            int ctrlY = (y1 + y2) / 2 - effectiveArc;
 
             g2.draw(new java.awt.geom.QuadCurve2D.Float(x1, y1, ctrlX, ctrlY, x2, y2));
 
