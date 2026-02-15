@@ -199,6 +199,21 @@ public class PipelineSnapshotWindow extends JInternalFrame implements Observer {
                     if (instrStr != null) {
                         g.setColor(instrStr.equals("nop") ? new Color(250, 218, 139) : STAGE_COLORS[sIdx]);
                         g.fillRect(xOffset + 1, y + 1, COL_WIDTH - 2, ROW_HEIGHT - 2);
+
+                        // Highlight stall boxes in current cycle
+                        if (c == totalCycles) {
+                            PipelineSimulator.HazardInfo hazard = sim.getHazardInfo();
+                            if (hazard != null && hazard.stalled) {
+                                int idIdx = 1;
+                                int causeIdx = hazard.stallSource.equals("EX") ? 2 : 3;
+                                if (sIdx == idIdx || sIdx == causeIdx) {
+                                    g.setColor(Color.RED);
+                                    g.setStroke(new BasicStroke(2));
+                                    g.drawRect(xOffset + 1, y + 1, COL_WIDTH - 2, ROW_HEIGHT - 2);
+                                }
+                            }
+                        }
+
                         g.setColor(Color.BLACK);
                         g.setFont(new Font("Monospaced", Font.PLAIN, 11));
                         // Truncate if too long (now with more space)

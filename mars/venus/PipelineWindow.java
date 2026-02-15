@@ -101,6 +101,81 @@ public class PipelineWindow extends JInternalFrame implements Observer {
             for (int i = 0; i < 4; i++) {
                 drawFlowArrow(g2, START_X + BOX_WIDTH + i * (BOX_WIDTH + SPACING), START_Y);
             }
+
+            // Draw Hazards (Stalls and Forwarding)
+            drawHazards(g2);
+        }
+
+        private void drawHazards(Graphics2D g2) {
+            PipelineSimulator.HazardInfo hazard = simulator.getHazardInfo();
+            if (hazard == null)
+                return;
+
+            // 1. Draw Stalls
+            if (hazard.stalled) {
+                int idX = getBoxX(1);
+                int causeIdx = hazard.stallSource.equals("EX") ? 2 : 3;
+                int causeX = getBoxX(causeIdx);
+
+                // Highlight boxes in red
+                g2.setStroke(new BasicStroke(3));
+                g2.setColor(Color.RED);
+                g2.drawRect(idX - 2, START_Y - 2, BOX_WIDTH + 4, BOX_HEIGHT + 4);
+                g2.drawRect(causeX - 2, START_Y - 2, BOX_WIDTH + 4, BOX_HEIGHT + 4);
+
+                // Draw red arrow from cause to ID
+                drawHazardArrow(g2, causeX + BOX_WIDTH / 2, START_Y + BOX_HEIGHT,
+                        idX + BOX_WIDTH / 2, START_Y + BOX_HEIGHT, Color.RED, true);
+            }
+
+            // 2. Draw Forwarding
+            g2.setStroke(new BasicStroke(2));
+            for (Map.Entry<String, String> entry : hazard.forwardings.entrySet()) {
+                String dest = entry.getKey();
+                String src = entry.getValue();
+
+                int srcIdx = src.equals("MEM") ? 3 : 4;
+                int destIdx = dest.startsWith("ID") ? 1 : (dest.startsWith("EX") ? 2 : 3);
+
+                int srcX = getBoxX(srcIdx);
+                int destX = getBoxX(destIdx);
+
+                // Highlight boxes in blue
+                g2.setColor(Color.BLUE);
+                g2.drawRect(srcX - 2, START_Y - 2, BOX_WIDTH + 4, BOX_HEIGHT + 4);
+                g2.drawRect(destX - 2, START_Y - 2, BOX_WIDTH + 4, BOX_HEIGHT + 4);
+
+                // Draw blue arrow from source to destination
+                // Offset vertically to avoid overlap if multiple forwards
+                int yOffset = dest.endsWith("RS") ? -15 : (dest.endsWith("RT") ? 15 : 0);
+                drawHazardArrow(g2, srcX + BOX_WIDTH / 2, START_Y + BOX_HEIGHT / 2,
+                        destX + BOX_WIDTH / 2, START_Y + BOX_HEIGHT / 2 + yOffset, Color.BLUE, false);
+            }
+        }
+
+        private int getBoxX(int stageIdx) {
+            return START_X + stageIdx * (BOX_WIDTH + SPACING);
+        }
+
+        private void drawHazardArrow(Graphics2D g2, int x1, int y1, int x2, int y2, Color color, boolean bottom) {
+            g2.setColor(color);
+            int arcHeight = bottom ? -35 : 35;
+
+            // Draw a curved line (quad curve)
+            int ctrlX = (x1 + x2) / 2;
+            int ctrlY = (y1 + y2) / 2 - arcHeight;
+
+            g2.draw(new java.awt.geom.QuadCurve2D.Float(x1, y1, ctrlX, ctrlY, x2, y2));
+
+            // Arrow head at x2, y2
+            int headSize = 8;
+            double angle = Math.atan2(y2 - ctrlY, x2 - ctrlX);
+            g2.translate(x2, y2);
+            g2.rotate(angle);
+            g2.drawLine(0, 0, -headSize, -headSize / 2);
+            g2.drawLine(0, 0, -headSize, headSize / 2);
+            g2.rotate(-angle);
+            g2.translate(-x2, -y2);
         }
 
         private void drawFlowArrow(Graphics2D g2, int x, int y) {

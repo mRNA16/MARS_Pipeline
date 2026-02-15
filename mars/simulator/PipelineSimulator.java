@@ -24,6 +24,24 @@ public class PipelineSimulator extends Observable {
     private List<ExecutionStep> executionHistory = new ArrayList<>();
     private final ReentrantReadWriteLock stateLock = new ReentrantReadWriteLock();
 
+    // Hazard information for visualization
+    public static class HazardInfo {
+        public boolean stalled = false;
+        public String stallSource = null; // "EX" or "MEM"
+        // Forwarding: Map<DestinationName, SourceStage>
+        // DestinationNames: "ID_RS", "ID_RT", "EX_RS", "EX_RT", "MEM_RT"
+        // SourceStage: "EX", "MEM"
+        public Map<String, String> forwardings = new HashMap<>();
+
+        public void clear() {
+            stalled = false;
+            stallSource = null;
+            forwardings.clear();
+        }
+    }
+
+    private HazardInfo currentHazard = new HazardInfo();
+
     public static class ExecutionStep {
         public int id;
         public int pc;
@@ -113,6 +131,20 @@ public class PipelineSimulator extends Observable {
         }
     }
 
+    public HazardInfo getHazardInfo() {
+        stateLock.readLock().lock();
+        try {
+            // Return a copy to avoid concurrency issues during UI paint
+            HazardInfo copy = new HazardInfo();
+            copy.stalled = currentHazard.stalled;
+            copy.stallSource = currentHazard.stallSource;
+            copy.forwardings.putAll(currentHazard.forwardings);
+            return copy;
+        } finally {
+            stateLock.readLock().unlock();
+        }
+    }
+
     public static PipelineSimulator getInstance() {
         if (instance == null) {
             instance = new PipelineSimulator();
@@ -134,9 +166,10 @@ public class PipelineSimulator extends Observable {
         stateLock.writeLock().lock();
         try {
             regs.resetAll();
-            cycles = 0;
             nextStepId = 0;
             executionHistory.clear();
+            currentHazard.clear();
+            updateHazardInfo();
             setChanged();
         } finally {
             stateLock.writeLock().unlock();
@@ -204,7 +237,7 @@ public class PipelineSimulator extends Observable {
         if (M_RT == 0) {
             forward_M_RT_Value = 0;
         } else if (W_A3 == M_RT && W_ctrl.grf_we && W_A3 != 0) {
-            forward_M_RT_Value = W_WD; // Forward from WB
+            forward_M_RT_Value = W_WD;
         }
 
         // Forwarding to EX from MEM
@@ -404,7 +437,83 @@ public class PipelineSimulator extends Observable {
             RegisterFile.setProgramCounter(npc);
         }
 
+        // --- Update Hazard Info for the NEW state displayed in UI ---
+        updateHazardInfo();
+
         return isDone();
+    }
+
+    /**
+     * Internal method to calculate hazards based on the CURRENT state of pipeline
+     * registers.
+     * This ensures UI visualization matches the active "wires" between stages.
+     */
+    private void updateHazardInfo() {
+        stateLock.writeLock().lock();
+        try {
+            currentHazard.clear();
+
+            PipelineRegisters.IF_ID D = regs.if_id;
+            PipelineRegisters.ID_EX E = regs.id_ex;
+            PipelineRegisters.EX_MEM M = regs.ex_mem;
+            PipelineRegisters.MEM_WB W = regs.mem_wb;
+
+            PipelineController.Signals D_ctrl = PipelineController.decode(D.D_instr);
+            PipelineController.Signals E_ctrl = PipelineController.decode(E.E_instr);
+            PipelineController.Signals M_ctrl = PipelineController.decode(M.M_instr);
+            PipelineController.Signals W_ctrl = PipelineController.decode(W.W_instr);
+
+            // 1. Detect Stalls (Are the current instructions in D/E/M causing a stall for
+            // next cycle?)
+            boolean stall = HazardUnit.checkStall(
+                    D_ctrl.t_use_rs, D_ctrl.t_use_rt,
+                    E_ctrl.t_new_E, M_ctrl.t_new_M, W_ctrl.t_new_W,
+                    D_ctrl.rs, D_ctrl.rt, E_ctrl.writeRegDst, M_ctrl.writeRegDst);
+
+            if (stall) {
+                currentHazard.stalled = true;
+                boolean rs_E_hazard = (D_ctrl.t_use_rs < E_ctrl.t_new_E) && (D_ctrl.rs == E_ctrl.writeRegDst)
+                        && (E_ctrl.writeRegDst != 0);
+                boolean rt_E_hazard = (D_ctrl.t_use_rt < E_ctrl.t_new_E) && (D_ctrl.rt == E_ctrl.writeRegDst)
+                        && (E_ctrl.writeRegDst != 0);
+                currentHazard.stallSource = (rs_E_hazard || rt_E_hazard) ? "EX" : "MEM";
+            }
+
+            // 2. Detect Forwardings (Based on visible instructions)
+            // Destination: ID
+            if (D_ctrl.rs != 0) {
+                if (D_ctrl.rs == M_ctrl.writeRegDst && M_ctrl.grf_we)
+                    currentHazard.forwardings.put("ID_RS", "MEM");
+                else if (D_ctrl.rs == W_ctrl.writeRegDst && W_ctrl.grf_we)
+                    currentHazard.forwardings.put("ID_RS", "WB");
+            }
+            if (D_ctrl.rt != 0) {
+                if (D_ctrl.rt == M_ctrl.writeRegDst && M_ctrl.grf_we)
+                    currentHazard.forwardings.put("ID_RT", "MEM");
+                else if (D_ctrl.rt == W_ctrl.writeRegDst && W_ctrl.grf_we)
+                    currentHazard.forwardings.put("ID_RT", "WB");
+            }
+            // Destination: EX
+            if (E_ctrl.rs != 0) {
+                if (E_ctrl.rs == M_ctrl.writeRegDst && M_ctrl.grf_we)
+                    currentHazard.forwardings.put("EX_RS", "MEM");
+                else if (E_ctrl.rs == W_ctrl.writeRegDst && W_ctrl.grf_we)
+                    currentHazard.forwardings.put("EX_RS", "WB");
+            }
+            if (E_ctrl.rt != 0) {
+                if (E_ctrl.rt == M_ctrl.writeRegDst && M_ctrl.grf_we)
+                    currentHazard.forwardings.put("EX_RT", "MEM");
+                else if (E_ctrl.rt == W_ctrl.writeRegDst && W_ctrl.grf_we)
+                    currentHazard.forwardings.put("EX_RT", "WB");
+            }
+            // Destination: MEM (RT for Store)
+            if (M_ctrl.rt != 0 && M_ctrl.rt == W_ctrl.writeRegDst && W_ctrl.grf_we) {
+                currentHazard.forwardings.put("MEM_RT", "WB");
+            }
+
+        } finally {
+            stateLock.writeLock().unlock();
+        }
     }
 
     /**
