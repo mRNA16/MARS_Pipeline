@@ -16,23 +16,40 @@ import java.util.concurrent.locks.*;
  */
 public class PipelineSnapshotWindow extends JInternalFrame implements Observer {
     private DiagramPanel diagramPanel;
+    private RowHeaderPanel rowHeader;
+    private ColumnHeaderPanel colHeader;
     private JScrollPane scrollPane;
 
     private static final int ROW_HEIGHT = 22;
-    private static final int COL_WIDTH = 160; // Wider for better readability
-    private static final int LABEL_WIDTH = 40;
+    private static final int COL_WIDTH = 160;
+    private static final int LABEL_WIDTH = 60;
     private static final int HEADER_HEIGHT = 25;
+
+    private static final String[] STAGES = { "IF", "ID", "EX", "MEM", "WB" };
+    private static final Color[] STAGE_COLORS = {
+            new Color(255, 255, 200), // IF
+            new Color(255, 230, 200), // ID
+            new Color(255, 210, 210), // EX
+            new Color(210, 255, 255), // MEM
+            new Color(210, 255, 210) // WB
+    };
 
     private long lastUpdateTime = 0;
     private static final long UPDATE_THROTTLE_MS = 100;
     private volatile boolean updatePending = false;
 
     public PipelineSnapshotWindow() {
-        super("流水线快照", true, false, true, true);
-        diagramPanel = new DiagramPanel();
-        scrollPane = new JScrollPane(diagramPanel);
+        super("PipelineSnapshot", true, false, true, true);
 
-        // Header for cycles
+        diagramPanel = new DiagramPanel();
+        rowHeader = new RowHeaderPanel();
+        colHeader = new ColumnHeaderPanel();
+
+        scrollPane = new JScrollPane(diagramPanel);
+        scrollPane.setRowHeaderView(rowHeader);
+        scrollPane.setColumnHeaderView(colHeader);
+
+        // Header corner
         JPanel corner = new JPanel() {
             protected void paintComponent(Graphics g) {
                 super.paintComponent(g);
@@ -42,7 +59,7 @@ public class PipelineSnapshotWindow extends JInternalFrame implements Observer {
                 g.drawRect(0, 0, getWidth() - 1, getHeight() - 1);
                 g.setColor(Color.BLACK);
                 g.setFont(new Font("SansSerif", Font.PLAIN, 11));
-                g.drawString(" 周期 / 级", 10, 17);
+                g.drawString("Cycle/Stage", 0, 17);
             }
         };
         corner.setPreferredSize(new Dimension(LABEL_WIDTH, HEADER_HEIGHT));
@@ -71,8 +88,24 @@ public class PipelineSnapshotWindow extends JInternalFrame implements Observer {
 
         SwingUtilities.invokeLater(() -> {
             try {
-                diagramPanel.recalculateSize();
+                int totalCycles = PipelineSimulator.getInstance().getCycles();
+                int targetWidth = STAGES.length * COL_WIDTH;
+                int targetHeight = (totalCycles + 1) * ROW_HEIGHT;
+
+                if (diagramPanel.getPreferredSize().width != targetWidth ||
+                        diagramPanel.getPreferredSize().height != targetHeight) {
+                    Dimension d = new Dimension(targetWidth, targetHeight);
+                    diagramPanel.setPreferredSize(d);
+                    rowHeader.setPreferredSize(new Dimension(LABEL_WIDTH, d.height));
+                    colHeader.setPreferredSize(new Dimension(d.width, HEADER_HEIGHT));
+                    diagramPanel.revalidate();
+                    rowHeader.revalidate();
+                    colHeader.revalidate();
+                }
+
                 diagramPanel.repaint();
+                rowHeader.repaint();
+                colHeader.repaint();
 
                 // Auto-scroll to the bottom
                 JScrollBar vertical = scrollPane.getVerticalScrollBar();
@@ -85,30 +118,59 @@ public class PipelineSnapshotWindow extends JInternalFrame implements Observer {
         });
     }
 
-    private class DiagramPanel extends JPanel implements Scrollable {
-        private final String[] STAGES = { "IF", "ID", "EX", "MEM", "WB" };
-        private final Color[] STAGE_COLORS = {
-                new Color(255, 255, 200), // IF
-                new Color(255, 230, 200), // ID
-                new Color(255, 210, 210), // EX
-                new Color(210, 255, 255), // MEM
-                new Color(210, 255, 210) // WB
-        };
+    private class ColumnHeaderPanel extends JPanel {
+        public ColumnHeaderPanel() {
+            setPreferredSize(new Dimension(STAGES.length * COL_WIDTH, HEADER_HEIGHT));
+        }
 
+        @Override
+        protected void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            g.setColor(new Color(240, 240, 240));
+            g.fillRect(0, 0, getWidth(), getHeight());
+            g.setColor(Color.GRAY);
+            g.drawLine(0, HEADER_HEIGHT - 1, getWidth(), HEADER_HEIGHT - 1);
+
+            g.setColor(Color.BLACK);
+            g.setFont(new Font("SansSerif", Font.BOLD, 12));
+            for (int i = 0; i < STAGES.length; i++) {
+                int x = i * COL_WIDTH;
+                g.drawString(STAGES[i], x + COL_WIDTH / 2 - 10, 17);
+                g.drawLine(x, 0, x, HEADER_HEIGHT);
+            }
+        }
+    }
+
+    private class RowHeaderPanel extends JPanel {
+        public RowHeaderPanel() {
+            setPreferredSize(new Dimension(LABEL_WIDTH, 400));
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            int totalCycles = PipelineSimulator.getInstance().getCycles();
+            g.setColor(new Color(240, 240, 240));
+            g.fillRect(0, 0, getWidth(), getHeight());
+            g.setColor(Color.GRAY);
+            g.drawLine(LABEL_WIDTH - 1, 0, LABEL_WIDTH - 1, getHeight());
+
+            g.setColor(Color.BLACK);
+            g.setFont(new Font("SansSerif", Font.PLAIN, 12));
+            for (int c = 0; c <= totalCycles; c++) {
+                int y = c * ROW_HEIGHT;
+                g.drawString("C " + c, 10, y + 16);
+                g.setColor(new Color(230, 230, 230));
+                g.drawLine(0, y + ROW_HEIGHT, LABEL_WIDTH, y + ROW_HEIGHT);
+                g.setColor(Color.BLACK);
+            }
+        }
+    }
+
+    private class DiagramPanel extends JPanel implements Scrollable {
         public DiagramPanel() {
             setOpaque(true);
             setBackground(Color.WHITE);
-        }
-
-        public void recalculateSize() {
-            int totalCycles = PipelineSimulator.getInstance().getCycles();
-            Dimension d = new Dimension(
-                    LABEL_WIDTH + STAGES.length * COL_WIDTH,
-                    HEADER_HEIGHT + (totalCycles + 5) * ROW_HEIGHT);
-            if (!getPreferredSize().equals(d)) {
-                setPreferredSize(d);
-                revalidate();
-            }
         }
 
         @Override
@@ -124,74 +186,22 @@ public class PipelineSnapshotWindow extends JInternalFrame implements Observer {
 
             lock.readLock().lock();
             try {
-                int totalCycles = sim.getCycles();
                 java.util.List<PipelineSimulator.ExecutionStep> history = sim.getExecutionHistory();
-
-                // Draw Fixed Column Header (Stages)
-                drawStageHeaders(g2, clip);
-
-                // Draw Cycle Labels (Left Column)
-                drawCycleLabels(g2, clip, totalCycles);
-
-                // Draw Instructions in Stages
-                drawPipelineGrid(g2, clip, history, totalCycles, sim);
-
+                drawPipelineGrid(g2, clip, history, sim.getCycles(), sim);
             } finally {
                 lock.readLock().unlock();
-            }
-        }
-
-        private void drawStageHeaders(Graphics2D g, Rectangle clip) {
-            g.setColor(new Color(240, 240, 240));
-            // Header is at y = 0 relative to the component, but we need it sticky?
-            // Wait, JScrollPane headers are handled by setColumnHeaderView.
-            // But if I want to keep it simple within one panel for now:
-            int headerY = Math.max(0, clip.y); // Simplified sticky
-            // Actually, let's use the scrollPane header mechanism if possible.
-            // For now, I'll just draw it.
-
-            g.fillRect(clip.x, headerY, clip.width, HEADER_HEIGHT);
-            g.setColor(Color.GRAY);
-            g.drawLine(clip.x, headerY + HEADER_HEIGHT - 1, clip.x + clip.width, headerY + HEADER_HEIGHT - 1);
-
-            g.setColor(Color.BLACK);
-            g.setFont(new Font("SansSerif", Font.BOLD, 12));
-            for (int i = 0; i < STAGES.length; i++) {
-                int x = LABEL_WIDTH + i * COL_WIDTH;
-                g.drawString(STAGES[i], x + COL_WIDTH / 2 - 10, headerY + 17);
-                g.drawLine(x, headerY, x, headerY + HEADER_HEIGHT);
-            }
-        }
-
-        private void drawCycleLabels(Graphics2D g, Rectangle clip, int totalCycles) {
-            g.setColor(new Color(240, 240, 240));
-            g.fillRect(0, clip.y, LABEL_WIDTH, clip.height);
-            g.setColor(Color.GRAY);
-            g.drawLine(LABEL_WIDTH - 1, clip.y, LABEL_WIDTH - 1, clip.y + clip.height);
-
-            g.setColor(Color.BLACK);
-            g.setFont(new Font("SansSerif", Font.PLAIN, 12));
-            int startCycle = Math.max(0, (clip.y - HEADER_HEIGHT) / ROW_HEIGHT);
-            int endCycle = (clip.y + clip.height - HEADER_HEIGHT) / ROW_HEIGHT + 1;
-
-            for (int c = startCycle; c <= Math.min(endCycle, totalCycles); c++) {
-                int y = HEADER_HEIGHT + c * ROW_HEIGHT;
-                g.drawString("C " + c, 10, y + 16);
-                g.setColor(new Color(230, 230, 230));
-                g.drawLine(0, y + ROW_HEIGHT, LABEL_WIDTH, y + ROW_HEIGHT);
-                g.setColor(Color.BLACK);
             }
         }
 
         private void drawPipelineGrid(Graphics2D g, Rectangle clip,
                 java.util.List<PipelineSimulator.ExecutionStep> history,
                 int totalCycles, PipelineSimulator sim) {
-            int startCycle = Math.max(0, (clip.y - HEADER_HEIGHT) / ROW_HEIGHT);
-            int endCycle = (clip.y + clip.height - HEADER_HEIGHT) / ROW_HEIGHT + 1;
+            int startCycle = Math.max(0, clip.y / ROW_HEIGHT);
+            int endCycle = (clip.y + clip.height) / ROW_HEIGHT + 1;
 
             for (int c = startCycle; c <= Math.min(endCycle, totalCycles); c++) {
-                int y = HEADER_HEIGHT + c * ROW_HEIGHT;
-                int xOffset = LABEL_WIDTH;
+                int y = c * ROW_HEIGHT;
+                int xOffset = 0;
 
                 // For each stage in this cycle
                 for (int sIdx = 0; sIdx < STAGES.length; sIdx++) {
@@ -235,7 +245,7 @@ public class PipelineSnapshotWindow extends JInternalFrame implements Observer {
                 }
 
                 g.setColor(new Color(230, 230, 230));
-                g.drawLine(LABEL_WIDTH, y + ROW_HEIGHT, getWidth(), y + ROW_HEIGHT);
+                g.drawLine(0, y + ROW_HEIGHT, getWidth(), y + ROW_HEIGHT);
             }
         }
 
@@ -276,10 +286,6 @@ public class PipelineSnapshotWindow extends JInternalFrame implements Observer {
             }
 
             // Search history
-            // Since we usually have a localized cycle range,
-            // the instructions are roughly in order of cycles they appeared.
-            // For better performance, we could binary search or map it.
-            // But for ~1000 instructions, linear scan is fine.
             for (int i = history.size() - 1; i >= 0; i--) {
                 PipelineSimulator.ExecutionStep step = history.get(i);
                 if (stage.equals(step.getStageAt(cycle))) {
