@@ -108,12 +108,22 @@ public class ClockCycleWindow extends JInternalFrame implements Observer {
                 rowHeader.repaint();
                 colHeader.repaint();
 
-                // Auto-scroll to the right-bottom
-                JScrollBar horizontal = scrollPane.getHorizontalScrollBar();
-                JScrollBar vertical = scrollPane.getVerticalScrollBar();
-                if (!horizontal.getValueIsAdjusting() && !vertical.getValueIsAdjusting()) {
-                    horizontal.setValue(horizontal.getMaximum());
-                    vertical.setValue(vertical.getMaximum());
+                // Center-following logic: Focal point is (currentCycle, latestInstruction)
+                JViewport viewport = scrollPane.getViewport();
+                if (!viewport.getViewRect().contains(new Point(targetWidth - 100, targetHeight - 100))) {
+                    // Only auto-scroll if we are near the edge or it's a new step
+                    int viewWidth = viewport.getWidth();
+                    int viewHeight = viewport.getHeight();
+
+                    // Calculate the center position
+                    int centerX = totalCycles * COL_WIDTH;
+                    int centerY = totalInstructions * ROW_HEIGHT;
+
+                    // Adjust to put (centerX, centerY) in the middle of the viewport
+                    int scrollX = Math.max(0, centerX - viewWidth / 2 + COL_WIDTH / 2);
+                    int scrollY = Math.max(0, centerY - viewHeight / 2 + ROW_HEIGHT / 2);
+
+                    viewport.setViewPosition(new Point(scrollX, scrollY));
                 }
             } finally {
                 updatePending = false;
