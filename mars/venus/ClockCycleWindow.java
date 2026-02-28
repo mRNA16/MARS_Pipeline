@@ -30,7 +30,7 @@ public class ClockCycleWindow extends JInternalFrame implements Observer {
     private volatile boolean updatePending = false;
 
     public ClockCycleWindow() {
-        super("时钟周期图", true, false, true, true);
+        super("ClockCycleDiagram", true, false, true, true);
 
         mainPanel = new MainDiagramPanel();
         rowHeader = new RowHeaderPanel();
@@ -50,7 +50,7 @@ public class ClockCycleWindow extends JInternalFrame implements Observer {
                 g.drawRect(0, 0, getWidth() - 1, getHeight() - 1);
                 g.setColor(Color.BLACK);
                 g.setFont(new Font("SansSerif", Font.PLAIN, 11));
-                g.drawString(" 指令 / 周期", 10, 17);
+                g.drawString("Instruction/Cycle", 10, 17);
             }
         };
         corner.setPreferredSize(new Dimension(LABEL_WIDTH, HEADER_HEIGHT));
