@@ -49,6 +49,10 @@ public class PipelineSnapshotWindow extends JInternalFrame implements Observer {
         scrollPane.setRowHeaderView(rowHeader);
         scrollPane.setColumnHeaderView(colHeader);
 
+        // Use Simple Scroll Mode to prevent ghosting from pixel copying (blit)
+        scrollPane.getViewport().setScrollMode(JViewport.SIMPLE_SCROLL_MODE);
+        scrollPane.getRowHeader().setScrollMode(JViewport.SIMPLE_SCROLL_MODE);
+
         // Header corner
         JPanel corner = new JPanel() {
             protected void paintComponent(Graphics g) {
@@ -126,8 +130,12 @@ public class PipelineSnapshotWindow extends JInternalFrame implements Observer {
         @Override
         protected void paintComponent(Graphics g) {
             super.paintComponent(g);
-            g.setColor(new Color(240, 240, 240));
-            g.fillRect(0, 0, getWidth(), getHeight());
+            Graphics2D g2 = (Graphics2D) g;
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+
+            g2.setColor(new Color(240, 240, 240));
+            g2.fillRect(0, 0, getWidth(), getHeight());
             g.setColor(Color.GRAY);
             g.drawLine(0, HEADER_HEIGHT - 1, getWidth(), HEADER_HEIGHT - 1);
 
@@ -149,9 +157,13 @@ public class PipelineSnapshotWindow extends JInternalFrame implements Observer {
         @Override
         protected void paintComponent(Graphics g) {
             super.paintComponent(g);
+            Graphics2D g2 = (Graphics2D) g;
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+
             int totalCycles = PipelineSimulator.getInstance().getCycles();
-            g.setColor(new Color(240, 240, 240));
-            g.fillRect(0, 0, getWidth(), getHeight());
+            g2.setColor(new Color(240, 240, 240));
+            g2.fillRect(0, 0, getWidth(), getHeight());
             g.setColor(Color.GRAY);
             g.drawLine(LABEL_WIDTH - 1, 0, LABEL_WIDTH - 1, getHeight());
 
@@ -177,6 +189,9 @@ public class PipelineSnapshotWindow extends JInternalFrame implements Observer {
         protected void paintComponent(Graphics g) {
             super.paintComponent(g);
             Graphics2D g2 = (Graphics2D) g;
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+
             Rectangle clip = g.getClipBounds();
             if (clip == null)
                 return;
