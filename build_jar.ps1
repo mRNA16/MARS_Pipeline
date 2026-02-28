@@ -1,6 +1,6 @@
 # MARS Pipeline 高兼容性打包脚本 (Target: Java 8)
 
-$JarName = "Mars.jar"
+$JarName = "Mars_pipeline.jar"
 $Manifest = "mainclass.txt"
 $BuildDir = "temp_build"
 $SrcDir = "." # 源码根目录
