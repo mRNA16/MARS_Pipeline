@@ -250,7 +250,13 @@ public class ClockCycleWindow extends JInternalFrame implements Observer {
                     if (r < history.size()) {
                         text = getInstructionString(history.get(r).pc);
                     } else if (r == nextStepId && !sim.isDone()) {
-                        text = getInstructionString(RegisterFile.getProgramCounter());
+                        int pc = RegisterFile.getProgramCounter();
+                        try {
+                            if (Globals.memory.getStatement(pc) != null) {
+                                text = getInstructionString(pc);
+                            }
+                        } catch (Exception e) {
+                        }
                     }
                     if (!text.isEmpty())
                         g.drawString(text, 5, y + 16);
@@ -328,8 +334,14 @@ public class ClockCycleWindow extends JInternalFrame implements Observer {
             return "EX";
         if (row == regs.if_id.stepId)
             return "ID";
-        if (row == sim.getNextStepId() && !sim.isDone())
-            return "IF";
+        if (row == sim.getNextStepId() && !sim.isDone()) {
+            int pc = RegisterFile.getProgramCounter();
+            try {
+                if (Globals.memory.getStatement(pc) != null)
+                    return "IF";
+            } catch (Exception e) {
+            }
+        }
         return null;
     }
 

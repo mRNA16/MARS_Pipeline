@@ -560,7 +560,13 @@ public class PipelineSimulator extends Observable {
 
         int F_stepId = -1;
         if (!stall) {
-            if (F_instr != 0) {
+            mars.ProgramStatement F_stmt = null;
+            try {
+                F_stmt = Globals.memory.getStatement(F_pc);
+            } catch (Exception e) {
+            }
+
+            if (F_stmt != null) {
                 F_stepId = nextStepId++;
                 ExecutionStep step = new ExecutionStep(F_stepId, F_pc);
                 step.setStage(cycles, "IF");
@@ -708,22 +714,27 @@ public class PipelineSimulator extends Observable {
     public boolean isDone() {
         stateLock.readLock().lock();
         try {
-            return regs.if_id.D_instr == 0 &&
-                    regs.id_ex.E_instr == 0 &&
-                    regs.ex_mem.M_instr == 0 &&
-                    regs.mem_wb.W_instr == 0 &&
-                    fetchInstruction(RegisterFile.getProgramCounter()) == 0;
+            return regs.if_id.D_instr == 0 && regs.if_id.stepId == -1 &&
+                    regs.id_ex.E_instr == 0 && regs.id_ex.stepId == -1 &&
+                    regs.ex_mem.M_instr == 0 && regs.ex_mem.stepId == -1 &&
+                    regs.mem_wb.W_instr == 0 && regs.mem_wb.stepId == -1 &&
+                    fetchInstruction(RegisterFile.getProgramCounter()) == 0 &&
+                    fetchStatement(RegisterFile.getProgramCounter()) == null;
         } finally {
             stateLock.readLock().unlock();
         }
     }
 
     private int fetchInstruction(int address) {
+        mars.ProgramStatement stmt = fetchStatement(address);
+        return (stmt == null) ? 0 : stmt.getBinaryStatement();
+    }
+
+    private mars.ProgramStatement fetchStatement(int address) {
         try {
-            mars.ProgramStatement stmt = Globals.memory.getStatement(address);
-            return (stmt == null) ? 0 : stmt.getBinaryStatement();
+            return Globals.memory.getStatement(address);
         } catch (Exception e) {
-            return 0;
+            return null;
         }
     }
 }

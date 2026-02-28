@@ -260,8 +260,14 @@ public class PipelineSnapshotWindow extends JInternalFrame implements Observer {
                         stepId = regs.if_id.stepId;
                         break;
                     case "IF":
-                        if (!sim.isDone())
-                            return getInstructionString(RegisterFile.getProgramCounter());
+                        if (!sim.isDone()) {
+                            int pc = RegisterFile.getProgramCounter();
+                            try {
+                                if (Globals.memory.getStatement(pc) != null)
+                                    return getInstructionString(pc);
+                            } catch (Exception e) {
+                            }
+                        }
                         break;
                 }
                 if (stepId != -1 && stepId < history.size()) {

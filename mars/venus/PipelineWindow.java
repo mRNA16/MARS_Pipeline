@@ -267,8 +267,14 @@ public class PipelineWindow extends JInternalFrame implements Observer {
         }
 
         private String getInstructionString(int binary, int pc) {
-            if (binary == 0)
+            if (binary == 0) {
+                try {
+                    if (Globals.memory.getStatement(pc) == null)
+                        return " ";
+                } catch (Exception e) {
+                }
                 return "nop";
+            }
             try {
                 ProgramStatement stmt = Globals.memory.getStatement(pc);
                 if (stmt != null && stmt.getBinaryStatement() == binary) {
