@@ -36,6 +36,8 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
     public class Mars {
        public static void main(String[] args) {
+           System.setProperty("awt.useSystemAAFontSettings", "on");
+           System.setProperty("swing.aatext", "true");
          new mars.MarsLaunch(args);
       }
    } 
