@@ -108,7 +108,99 @@ public class PipelineSimulator extends Observable {
                 return "STALL";
             return null;
         }
+
+        public synchronized void undoCycle(int cycle) {
+            if (cycleIF == cycle)
+                cycleIF = -1;
+            if (cycleID == cycle)
+                cycleID = -1;
+            if (cycleEX == cycle)
+                cycleEX = -1;
+            if (cycleMEM == cycle)
+                cycleMEM = -1;
+            if (cycleWB == cycle)
+                cycleWB = -1;
+            if (stallCycles != null) {
+                stallCycles.removeIf(c -> c == cycle);
+            }
+        }
     }
+
+    private static class PipelineSnapshot {
+        public int D_pc, D_instr, D_stepId;
+        public int E_pc, E_instr, E_RD1, E_RD2, E_EXT, E_stepId;
+        public boolean E_zero;
+        public int M_pc, M_instr, M_RD2, M_alu_ans, M_stepId;
+        public boolean M_zero;
+        public int W_pc, W_instr, W_alu_ans, W_dm_read, W_stepId;
+        public boolean W_zero;
+        public int snap_nextStepId;
+        public int archPC;
+
+        public PipelineSnapshot(PipelineRegisters regs, int nextStepId) {
+            D_pc = regs.if_id.D_pc;
+            D_instr = regs.if_id.D_instr;
+            D_stepId = regs.if_id.stepId;
+
+            E_pc = regs.id_ex.E_pc;
+            E_instr = regs.id_ex.E_instr;
+            E_RD1 = regs.id_ex.E_RD1;
+            E_RD2 = regs.id_ex.E_RD2;
+            E_EXT = regs.id_ex.E_EXT;
+            E_zero = regs.id_ex.E_zero;
+            E_stepId = regs.id_ex.stepId;
+
+            M_pc = regs.ex_mem.M_pc;
+            M_instr = regs.ex_mem.M_instr;
+            M_RD2 = regs.ex_mem.M_RD2;
+            M_alu_ans = regs.ex_mem.M_alu_ans;
+            M_zero = regs.ex_mem.M_zero;
+            M_stepId = regs.ex_mem.stepId;
+
+            W_pc = regs.mem_wb.W_pc;
+            W_instr = regs.mem_wb.W_instr;
+            W_alu_ans = regs.mem_wb.W_alu_ans;
+            W_dm_read = regs.mem_wb.W_dm_read;
+            W_zero = regs.mem_wb.W_zero;
+            W_stepId = regs.mem_wb.stepId;
+
+            this.snap_nextStepId = nextStepId;
+            this.archPC = RegisterFile.getProgramCounter();
+        }
+
+        public void restore(PipelineRegisters regs) {
+            regs.if_id.D_pc = D_pc;
+            regs.if_id.D_instr = D_instr;
+            regs.if_id.stepId = D_stepId;
+
+            regs.id_ex.E_pc = E_pc;
+            regs.id_ex.E_instr = E_instr;
+            regs.id_ex.E_RD1 = E_RD1;
+            regs.id_ex.E_RD2 = E_RD2;
+            regs.id_ex.E_EXT = E_EXT;
+            regs.id_ex.E_zero = E_zero;
+            regs.id_ex.stepId = E_stepId;
+
+            regs.ex_mem.M_pc = M_pc;
+            regs.ex_mem.M_instr = M_instr;
+            regs.ex_mem.M_RD2 = M_RD2;
+            regs.ex_mem.M_alu_ans = M_alu_ans;
+            regs.ex_mem.M_zero = M_zero;
+            regs.ex_mem.stepId = M_stepId;
+
+            regs.mem_wb.W_pc = W_pc;
+            regs.mem_wb.W_instr = W_instr;
+            regs.mem_wb.W_alu_ans = W_alu_ans;
+            regs.mem_wb.W_dm_read = W_dm_read;
+            regs.mem_wb.W_zero = W_zero;
+            regs.mem_wb.stepId = W_stepId;
+
+            RegisterFile.initializeProgramCounter(archPC);
+        }
+    }
+
+    private Stack<PipelineSnapshot> snapshotStack = new Stack<>();
+    private Stack<Integer> backstepCountStack = new Stack<>();
 
     public ReentrantReadWriteLock getLock() {
         return stateLock;
@@ -180,6 +272,8 @@ public class PipelineSimulator extends Observable {
             cycles = 0;
             nextStepId = 0;
             executionHistory.clear();
+            snapshotStack.clear();
+            backstepCountStack.clear();
             currentHazard.clear();
             updateHazardInfo();
             setChanged();
@@ -196,7 +290,22 @@ public class PipelineSimulator extends Observable {
         boolean done = false;
         stateLock.writeLock().lock();
         try {
+            // Save state BEFORE change
+            snapshotStack.push(new PipelineSnapshot(regs, nextStepId));
+            int backstepSizeBefore = 0;
+            if (Globals.getSettings().getBackSteppingEnabled() && Globals.program.getBackStepper() != null) {
+                backstepSizeBefore = Globals.program.getBackStepper().getStackSize();
+            }
+
             done = simulateStructure();
+
+            if (Globals.getSettings().getBackSteppingEnabled() && Globals.program.getBackStepper() != null) {
+                int backstepSizeAfter = Globals.program.getBackStepper().getStackSize();
+                backstepCountStack.push(backstepSizeAfter - backstepSizeBefore);
+            } else {
+                backstepCountStack.push(0);
+            }
+
             cycles++;
             setChanged();
         } finally {
@@ -205,6 +314,50 @@ public class PipelineSimulator extends Observable {
         notifyObservers();
         Thread.yield();
         return done;
+    }
+
+    /**
+     * Undo one cycle
+     */
+    public void back() {
+        stateLock.writeLock().lock();
+        try {
+            if (cycles == 0 || snapshotStack.isEmpty()) {
+                return;
+            }
+
+            // 1. Restore Registers
+            PipelineSnapshot snap = snapshotStack.pop();
+            snap.restore(regs);
+            this.nextStepId = snap.snap_nextStepId;
+
+            // 2. Undo Architectural State
+            if (Globals.getSettings().getBackSteppingEnabled() && Globals.program.getBackStepper() != null) {
+                int count = backstepCountStack.pop();
+                Globals.program.getBackStepper().backStepRaw(count);
+            } else {
+                backstepCountStack.pop();
+            }
+
+            // 3. Rollback History
+            cycles--;
+            int targetCycle = cycles; // This is the cycles count (0-indexed) during the step we are undoing
+
+            for (ExecutionStep step : executionHistory) {
+                step.undoCycle(targetCycle);
+            }
+
+            // Revert instructions that were first fetched/added in the cycle we just undid
+            if (executionHistory.size() > nextStepId) {
+                executionHistory.subList(nextStepId, executionHistory.size()).clear();
+            }
+
+            updateHazardInfo();
+            setChanged();
+        } finally {
+            stateLock.writeLock().unlock();
+        }
+        notifyObservers();
     }
 
     // Split into structural simulation to enable "Parallel" logic
@@ -445,8 +598,15 @@ public class PipelineSimulator extends Observable {
             }
 
             regs.if_id.update(F_pc, instrToID, stepIdToID);
-            // Update PC
+            // Update PC - temporarily disable backstepper recording for PC here
+            // because we manage PC explicitly via cycle internal state/snapshots
+            BackStepper bs = Globals.program.getBackStepper();
+            boolean bsEngaged = bs != null && bs.enabled();
+            if (bsEngaged)
+                bs.setEnabled(false);
             RegisterFile.setProgramCounter(npc);
+            if (bsEngaged)
+                bs.setEnabled(true);
         }
 
         // --- Update Hazard Info for the NEW state displayed in UI ---

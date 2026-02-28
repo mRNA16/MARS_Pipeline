@@ -2,6 +2,7 @@ package mars.venus;
 
 import mars.*;
 import mars.mips.dump.*;
+import mars.simulator.*;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
@@ -1019,9 +1020,10 @@ public class VenusUI extends JFrame {
             runGoAction.setEnabled(true);
             runStepAction.setEnabled(true);
             runBackstepAction.setEnabled(
-                        (Globals.getSettings().getBackSteppingEnabled() && !Globals.program.getBackStepper().empty())
-                                    ? true
-                                    : false);
+                        (Globals.getSettings().getBackSteppingEnabled() &&
+                                    (!Globals.program.getBackStepper().empty() ||
+                                                (Globals.getSettings().getBooleanSetting(Settings.PIPELINE_MODE)
+                                                            && PipelineSimulator.getInstance().getCycles() > 0))));
             runResetAction.setEnabled(true);
             runStopAction.setEnabled(false);
             runPauseAction.setEnabled(false);
@@ -1094,9 +1096,10 @@ public class VenusUI extends JFrame {
             runGoAction.setEnabled(false);
             runStepAction.setEnabled(false);
             runBackstepAction.setEnabled(
-                        (Globals.getSettings().getBackSteppingEnabled() && !Globals.program.getBackStepper().empty())
-                                    ? true
-                                    : false);
+                        (Globals.getSettings().getBackSteppingEnabled() &&
+                                    (!Globals.program.getBackStepper().empty() ||
+                                                (Globals.getSettings().getBooleanSetting(Settings.PIPELINE_MODE)
+                                                            && PipelineSimulator.getInstance().getCycles() > 0))));
             runResetAction.setEnabled(true);
             runStopAction.setEnabled(false);
             runPauseAction.setEnabled(false);
