@@ -86,12 +86,12 @@ public class RunResetAction extends GuiAction {
       executePane.getTextSegmentWindow().setCodeHighlighting(true);
       executePane.getTextSegmentWindow().highlightStepAtPC();
       mainUI.getRegistersPane().setSelectedComponent(executePane.getRegistersWindow());
-      FileStatus.set(FileStatus.RUNNABLE);
-      mainUI.setReset(true);
-      mainUI.setStarted(false);
       if (Globals.getSettings().getPipelineMode()) {
          mars.simulator.PipelineSimulator.getInstance().reset();
       }
+      FileStatus.set(FileStatus.RUNNABLE);
+      mainUI.setReset(true);
+      mainUI.setStarted(false);
 
       // Aug. 24, 2005 Ken Vollmar
       SystemIO.resetFiles(); // Ensure that I/O "file descriptors" are initialized for a new program run
